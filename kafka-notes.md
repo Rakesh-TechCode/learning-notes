@@ -1,4 +1,3 @@
-Yep dude 👍 I cleaned it up into **plain GitHub-compatible Markdown** — no unnecessary `id` attributes or empty code fences. You can directly paste this into your `.md` file. The content is based on your uploaded Kafka notes. 
 
 # 📘 Kafka Notes — Part 1
 
