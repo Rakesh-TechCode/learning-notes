@@ -643,6 +643,479 @@ future.cancel(true);
 future.isCancelled();
 ```
 
+# Java Threads — Topics 47 to 67
+
+## 47. `Callable`
+
+* `Callable<T>` is similar to `Runnable`, but it **returns a result**.
+* Its main method is `call()`.
+* `call()` can throw **checked exceptions**.
+* `<T>` represents the **return type**.
+* Usually submitted using `ExecutorService.submit()`.
+
+```java
+Callable<String> task = () -> "Done";
+```
+
+---
+
+## 48. `Callable` vs `Runnable`
+
+| **`Runnable`**                           | **`Callable<T>`**            |
+| ---------------------------------------- | ---------------------------- |
+| `run()`                                  | `call()`                     |
+| No return value                          | Returns a value              |
+| Cannot directly throw checked exceptions | Can throw checked exceptions |
+| `execute()` / `submit()`                 | `submit()`                   |
+
+### Remember
+
+```text
+Runnable  → perform task
+
+Callable  → perform task + return result
+```
+
+---
+
+## 49. `Future<T>` with `Callable`
+
+* `submit(Callable)` returns a **`Future<T>`**.
+* `T` represents the result type of the `Callable`.
+* `future.get()` retrieves that result.
+* `get()` may **block** until the task finishes.
+
+```java
+Callable<String> task = () -> "Payment Success";
+
+Future<String> future = service.submit(task);
+
+String result = future.get();
+```
+
+### Flow
+
+```text
+Callable<String>
+      ↓
+   submit()
+      ↓
+  Future<String>
+      ↓
+     get()
+      ↓
+    String
+```
+
+---
+
+## 50. `shutdown()`
+
+* Stops accepting **new tasks**.
+* Already submitted tasks are allowed to **finish**.
+* Provides a **graceful shutdown**.
+* Queued tasks can continue executing.
+
+```java
+service.shutdown();
+```
+
+### Remember
+
+> `shutdown()` → **"Finish existing work, then close."**
+
+---
+
+## 51. `shutdownNow()`
+
+* Stops accepting new tasks.
+* Attempts to **interrupt running tasks**.
+* Does not execute tasks still waiting in the queue.
+* Returns tasks that were waiting in the queue.
+* It **cannot forcefully kill** a running thread.
+
+```java
+service.shutdownNow();
+```
+
+### Remember
+
+```text
+shutdown()
+→ Finish existing work
+
+shutdownNow()
+→ Try to stop now
+```
+
+---
+
+# Thread Pool Types
+
+## 52. `newFixedThreadPool()`
+
+* Creates a **fixed number of worker threads**.
+* Extra tasks wait in a **queue**.
+* Workers are reused.
+* Gives **controlled concurrency**.
+* `newFixedThreadPool()` internally uses a `ThreadPoolExecutor`.
+* Its default work queue is an effectively **unbounded** `LinkedBlockingQueue`.
+
+```java
+Executors.newFixedThreadPool(3);
+```
+
+### Remember
+
+> **Fixed = fixed workers + queue.**
+
+---
+
+## 53. `newSingleThreadExecutor()`
+
+* Uses **one worker thread**.
+* Tasks execute **sequentially**.
+* Additional tasks wait in the queue.
+* Useful when tasks must be processed **one at a time**.
+* It is specifically designed for single-worker sequential execution.
+
+```java
+Executors.newSingleThreadExecutor();
+```
+
+### Remember
+
+> **Single = one worker → one task at a time.**
+
+---
+
+## 54. `newCachedThreadPool()`
+
+* Creates/reuses worker threads **dynamically**.
+* Reuses an existing idle worker when possible.
+* Can create new workers when no idle worker is available.
+* Idle workers can terminate after about **60 seconds** by default.
+* Can create many threads under heavy load, so don't blindly use it for unlimited work.
+
+```java
+Executors.newCachedThreadPool();
+```
+
+### Remember
+
+> **Cached = reuse idle threads + create when needed.**
+
+---
+
+## 55. `newScheduledThreadPool()`
+
+* Used for **delayed and periodic** task execution.
+* `schedule()` → executes **once after a delay**.
+* `scheduleAtFixedRate()` → executes repeatedly at a fixed rate.
+* `scheduleWithFixedDelay()` → waits for the previous task to finish, then waits for the delay.
+
+```java
+scheduler.schedule(task, 10, TimeUnit.SECONDS);
+```
+
+### Remember
+
+```text
+schedule()
+→ once after delay
+
+scheduleAtFixedRate()
+→ repeat at fixed rate
+
+scheduleWithFixedDelay()
+→ finish → delay → run again
+```
+
+---
+
+## 56. Factory Method
+
+* A **factory method** creates and returns an object for you.
+* It hides the object's creation/configuration details.
+* `Executors.newFixedThreadPool()` is a factory method.
+* `Executors` factory methods configure the underlying executor for you.
+
+```java
+ExecutorService service =
+        Executors.newFixedThreadPool(5);
+```
+
+### Remember
+
+> **Factory method → method that creates and returns an object.**
+
+---
+
+# `ThreadPoolExecutor`
+
+## 57. `ThreadPoolExecutor`
+
+* `ThreadPoolExecutor` is the main general-purpose **thread-pool implementation**.
+* Gives more control than `Executors` factory methods.
+* You configure things such as:
+
+  * `corePoolSize`
+  * `maximumPoolSize`
+  * `workQueue`
+  * `keepAliveTime`
+  * `ThreadFactory`
+  * rejection policy
+* `newFixedThreadPool()` and `newCachedThreadPool()` use it underneath.
+* Scheduled pools use the specialized `ScheduledThreadPoolExecutor`.
+
+### Flow
+
+```text
+Executors factory method
+        ↓
+configures executor
+        ↓
+ThreadPoolExecutor
+```
+
+---
+
+## 58. `corePoolSize` vs `maximumPoolSize`
+
+* `corePoolSize` = number of **core worker threads**.
+* `maximumPoolSize` = **maximum TOTAL worker threads**, including core threads.
+* Therefore, `core = 2, max = 4` means **maximum 4 threads**, not 6.
+* Extra threads can be created when the queue is full, up to `maximumPoolSize`.
+
+```text
+Core = 2
+Max  = 4
+
+W1 W2 → core
+W3 W4 → extra
+```
+
+### Remember
+
+> **Maximum includes core.**
+
+---
+
+## 59. Work Queue
+
+* A `ThreadPoolExecutor` needs a **work queue** to hold waiting tasks.
+* When using `Executors` factory methods, the queue is configured **internally**.
+* When directly creating `ThreadPoolExecutor`, you **provide the queue**.
+* Example: `new ArrayBlockingQueue<>(100)` → capacity of 100.
+* `newFixedThreadPool()` uses an effectively **unbounded** `LinkedBlockingQueue` by default.
+
+```java
+new ArrayBlockingQueue<>(100);
+```
+
+### Remember
+
+> **Factory method → queue chosen internally.**
+
+> **Direct `ThreadPoolExecutor` → you provide the queue.**
+
+---
+
+## 60. `ThreadPoolExecutor` Task Flow
+
+Suppose:
+
+```text
+Core = 2
+Max = 4
+Queue = 2
+```
+
+Tasks generally flow like this:
+
+```text
+T1 → W1
+T2 → W2
+T3 → Queue
+T4 → Queue
+T5 → W3
+T6 → W4
+T7 → Rejected
+```
+
+* Core threads are created first.
+* Additional tasks go to the queue.
+* When the queue is full, extra workers can be created up to `max`.
+* When **max workers + queue are full**, the task is rejected.
+
+### 🔥 Interview Important
+
+> **Core threads → Queue → Extra threads → Rejection**
+
+---
+
+# Rejection Policies
+
+## 61. `RejectedExecutionHandler`
+
+* Controls what happens when the pool **cannot accept a new task**.
+* This occurs when workers are at maximum and the queue is full.
+* Java provides four built-in policies:
+
+  * `AbortPolicy`
+  * `CallerRunsPolicy`
+  * `DiscardPolicy`
+  * `DiscardOldestPolicy`
+
+```text
+Workers full
++
+Queue full
+      ↓
+Rejection Policy
+```
+
+---
+
+## 62. `AbortPolicy`
+
+* **Default** rejection policy.
+* Rejects the new task.
+* Throws `RejectedExecutionException`.
+* The task is not executed.
+
+```text
+Pool full
+   ↓
+AbortPolicy
+   ↓
+❌ Exception
+```
+
+### Remember
+
+> **Abort = reject + exception.**
+
+---
+
+## 63. `CallerRunsPolicy`
+
+* Does not simply discard the task.
+* The **thread that submitted the task** executes it.
+* Does not throw `RejectedExecutionException` for this rejection.
+* Can provide natural **backpressure** because the caller becomes busy doing the work.
+
+```text
+Pool full
+   ↓
+CallerRunsPolicy
+   ↓
+Submitting thread executes task
+```
+
+### Remember
+
+> **CallerRuns = caller does the work.**
+
+---
+
+## 64. `DiscardPolicy`
+
+* Silently **discards the new task**.
+* Does not execute the task.
+* Does not throw `RejectedExecutionException`.
+* Suitable only when losing that work is acceptable.
+
+### Remember
+
+> **Discard = silently lose new task.**
+
+---
+
+## 65. `DiscardOldestPolicy`
+
+* Removes the **oldest waiting task from the queue**.
+* Then attempts to submit the new task again.
+* "Oldest" means the oldest **queued** task, not a currently running task.
+
+### Example
+
+```text
+Queue:
+T5 → T6
+
+T7 arrives
+ ↓
+Discard T5
+ ↓
+Queue:
+T6 → T7
+```
+
+### Remember
+
+> **DiscardOldest = remove oldest queued task → retry new task.**
+
+---
+
+## 66. `keepAliveTime`
+
+* Specifies how long an **idle non-core worker** can remain alive.
+* After the keep-alive time, an eligible idle extra thread can terminate.
+* Core threads normally remain alive even when idle.
+* `CachedThreadPool` effectively has **0 core threads**, so its idle workers can terminate after the keep-alive period.
+* Core threads can also be allowed to time out using `allowCoreThreadTimeOut(true)`.
+
+```text
+Extra worker
+   ↓
+Idle
+   ↓
+keepAliveTime
+   ↓
+Terminates
+```
+
+### Remember
+
+> **keepAliveTime = how long an eligible idle worker stays alive.**
+
+---
+
+## 67. `ThreadFactory`
+
+* `ThreadFactory` is responsible for **creating worker threads** for an executor.
+* It does **not execute the task itself**.
+* Can customize thread properties such as:
+
+  * thread name
+  * priority
+  * daemon status
+* Custom thread names make production logs/debugging easier.
+
+### Example
+
+```java
+ThreadFactory factory = r -> {
+    Thread t = new Thread(r);
+    t.setName("order-worker");
+    return t;
+};
+```
+
+### Remember
+
+> **ThreadFactory = creates/configures the worker thread.**
+
+---
+
+# 🧠 Executor Framework — Progress
+
+Previously, the notes ended at **46. `Future.isCancelled()`**.
+
+Now we've covered through:
+
+
 ---
 
 # Topics Covered So Far
@@ -693,19 +1166,43 @@ future.isCancelled();
 44. `Future.isDone()`
 45. `Future.cancel()`
 46. `Future.isCancelled()`
+47. `Callable`
+50.*`shutdown()`
+51.*`shutdownNow()`
+52.*Fixed Thread Pool
+53.*Single Thread Executor
+54.*Cached Thread Pool
+55.*Scheduled Thread Pool
+56.*Factory Method
+57.*`ThreadPoolExecutor`
+58.*`corePoolSize` vs `maximumPoolSize`
+59.* Work Queue
+60.*`ThreadPoolExecutor` Task Flow
+61.*`RejectedExecutionHandler`
+62.*`AbortPolicy`
+63.*`CallerRunsPolicy`
+64.*`DiscardPolicy`
+65.*`DiscardOldestPolicy`
+66.*`keepAliveTime`
+67.*`ThreadFactory`
 
 ---
+# 🚀 Next Major Topic
 
-# Next Topics
+## `CompletableFuture` ⭐
 
-* `Callable`
-* `Future<T>` with return values
-* `ExecutorService` practical examples
-* Thread Pool types
-* `shutdown()` vs `shutdownNow()`
-* **Multiprocessing**
-* **Multithreading vs Multiprocessing**
-* `CompletableFuture`
-* Concurrent Collections
-* Deadlock
-* More real-world threading patterns
+We'll connect it with what you've already learned:
+
+```text
+ExecutorService
+      ↓
+Callable / Future
+      ↓
+CompletableFuture
+      ↓
+Async + chaining + combining + exception handling
+      ↓
+Spring @Async
+```
+
+This is the point where your Java concurrency knowledge starts becoming **very useful for real Spring Boot backend work and interviews**.
