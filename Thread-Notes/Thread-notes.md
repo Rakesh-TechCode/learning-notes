@@ -1167,24 +1167,26 @@ Now we've covered through:
 45. `Future.cancel()`
 46. `Future.isCancelled()`
 47. `Callable`
-50.*`shutdown()`
-51.*`shutdownNow()`
-52.*Fixed Thread Pool
-53.*Single Thread Executor
-54.*Cached Thread Pool
-55.*Scheduled Thread Pool
-56.*Factory Method
-57.*`ThreadPoolExecutor`
-58.*`corePoolSize` vs `maximumPoolSize`
-59.* Work Queue
-60.*`ThreadPoolExecutor` Task Flow
-61.*`RejectedExecutionHandler`
-62.*`AbortPolicy`
-63.*`CallerRunsPolicy`
-64.*`DiscardPolicy`
-65.*`DiscardOldestPolicy`
-66.*`keepAliveTime`
-67.*`ThreadFactory`
+48. `Callable vs Runnable`
+49. `Future<T> with Callable`
+50. `shutdown()`
+51. `shutdownNow()`
+52. `Fixed Thread Pool`
+53. `Single Thread Executor`
+54. `Cached Thread Pool`
+55. `Scheduled Thread Pool`
+56. `Factory Method`
+57. `ThreadPoolExecutor`
+58. `corePoolSize` vs `maximumPoolSize`
+59. `Work Queue`
+60. `ThreadPoolExecutor` Task Flow
+61. `RejectedExecutionHandler`
+62. `AbortPolicy`
+63. `CallerRunsPolicy`
+64. `DiscardPolicy`
+65. `DiscardOldestPolicy`
+66. `keepAliveTime`
+67. `ThreadFactory`
 
 ---
 # 🚀 Next Major Topic
