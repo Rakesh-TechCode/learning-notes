@@ -1,4 +1,4 @@
-# Java Threads — Notes So Far
+# Java Threads 
 
 ## 1. What is a Thread
 
