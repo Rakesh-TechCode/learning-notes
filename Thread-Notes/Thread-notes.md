@@ -1118,6 +1118,657 @@ Now we've covered through:
 
 ---
 
+# `CompletableFuture` ⭐
+
+## 68. `CompletableFuture`
+
+* `CompletableFuture` represents a result that will be available **in the future**.
+* It supports **asynchronous execution, chaining, combining, and exception handling**.
+* Unlike `Future`, it can continue processing **without manually blocking at every step**.
+
+### Basic idea
+
+```text
+Start async task
+      ↓
+CompletableFuture
+      ↓
+Result available later
+      ↓
+Continue next operation
+```
+
+### Remember
+
+> **CompletableFuture = future result + async processing + chaining.**
+
+---
+
+## 69. `supplyAsync()`
+
+* Used to execute a task **asynchronously** when the task **returns a result**.
+* Returns `CompletableFuture<T>`.
+
+```java
+CompletableFuture<String> future =
+        CompletableFuture.supplyAsync(() -> "Hello");
+```
+
+### Remember
+
+> **supplyAsync() → async task + returns value**
+
+---
+
+## 70. `runAsync()`
+
+* Used when the asynchronous task **does not return a result**.
+* Returns `CompletableFuture<Void>`.
+
+```java
+CompletableFuture<Void> future =
+        CompletableFuture.runAsync(() -> {
+            System.out.println("Running");
+        });
+```
+
+### Remember
+
+```text
+supplyAsync() → returns result
+runAsync()    → no result
+```
+
+---
+
+## 71. `thenApply()`
+
+* Used to **transform the result** of a `CompletableFuture`.
+* Returns another `CompletableFuture`.
+
+```java
+CompletableFuture<String> result =
+        future.thenApply(value -> value.toUpperCase());
+```
+
+### Flow
+
+```text
+"Rakesh"
+   ↓
+thenApply()
+   ↓
+"RAKESH"
+```
+
+### Remember
+
+> **thenApply() → transform result**
+
+---
+
+## 72. `thenAccept()`
+
+* Used when you want to **consume/use the result**.
+* Does not return the processed value.
+* Returns `CompletableFuture<Void>`.
+
+```java
+future.thenAccept(value ->
+        System.out.println(value)
+);
+```
+
+### Remember
+
+> **thenAccept() → use result, no new result**
+
+---
+
+## 73. `thenRun()`
+
+* Used when you want to perform an action **after the previous task completes**.
+* Does not receive the previous result.
+* Returns `CompletableFuture<Void>`.
+
+```java
+future.thenRun(() ->
+        System.out.println("Task completed")
+);
+```
+
+### Remember
+
+```text
+thenApply()  → needs result + transforms it
+thenAccept() → needs result + consumes it
+thenRun()    → doesn't need result + runs action
+```
+
+---
+
+## 74. `thenCompose()`
+
+* Used when the **second async operation depends on the result of the first**.
+* Helps avoid nested `CompletableFuture`.
+
+### Example
+
+```text
+Get User
+   ↓
+User ID
+   ↓
+Get Orders using User ID
+```
+
+```java
+CompletableFuture<List<Order>> orders =
+        userFuture.thenCompose(userId ->
+                getOrders(userId)
+        );
+```
+
+### Remember
+
+> **thenCompose() → dependent async operations**
+
+---
+
+## 75. `thenCombine()`
+
+* Used when **two independent futures** need to be combined.
+* Waits for both results.
+
+```text
+User Future ───────┐
+                   ├──→ Combine
+Balance Future ────┘
+```
+
+```java
+CompletableFuture<String> result =
+        userFuture.thenCombine(
+                balanceFuture,
+                (user, balance) ->
+                        user + " : " + balance
+        );
+```
+
+### Remember
+
+> **thenCombine() → two independent futures → combine results**
+
+---
+
+## 76. `allOf()`
+
+* Used when you have **multiple independent futures**.
+* Completes when **all supplied futures complete**.
+* Returns `CompletableFuture<Void>`.
+
+```java
+CompletableFuture<Void> all =
+        CompletableFuture.allOf(
+                future1,
+                future2,
+                future3
+        );
+```
+
+### Important
+
+`allOf()` itself does **not directly return all results**.
+
+After completion, individual futures can be accessed:
+
+```java
+all.join();
+
+String result1 = future1.join();
+String result2 = future2.join();
+```
+
+### Remember
+
+> **allOf() → wait for ALL futures to complete**
+
+---
+
+## 77. `join()`
+
+* Used to obtain the result of a `CompletableFuture`.
+* If the result is not ready, it **waits**.
+* Returns the actual result, not a `CompletableFuture`.
+
+```java
+CompletableFuture<Integer> future =
+        CompletableFuture.supplyAsync(() -> 20);
+
+Integer value = future.join();
+```
+
+Here:
+
+```text
+future → CompletableFuture<Integer>
+
+value → Integer
+```
+
+### Important
+
+The `Integer` value becomes available **only after the future completes**.
+
+### Remember
+
+> **`CompletableFuture<T>`** **= future result**
+> **`T`** **= actual result**
+
+---
+
+## 78. `thenApplyAsync()`
+
+* `thenApply()` transforms the result.
+* `thenApplyAsync()` transforms the result **asynchronously**.
+
+```java
+CompletableFuture<String> result =
+        future.thenApplyAsync(
+                value -> value.toUpperCase()
+        );
+```
+
+You can also provide your own executor:
+
+```java
+future.thenApplyAsync(
+        value -> value.toUpperCase(),
+        executor
+);
+```
+
+### Default executor
+
+For async methods without a custom executor, `CompletableFuture` commonly uses:
+
+```text
+ForkJoinPool.commonPool()
+```
+
+### Remember
+
+```text
+Async + no Executor
+→ ForkJoinPool.commonPool()
+
+Async + custom Executor
+→ your Executor
+```
+
+---
+
+## 79. Async Variants
+
+The same idea applies to the other methods:
+
+```text
+thenApply()
+→ transform
+
+thenApplyAsync()
+→ transform asynchronously
+
+thenAccept()
+→ consume
+
+thenAcceptAsync()
+→ consume asynchronously
+
+thenRun()
+→ run action
+
+thenRunAsync()
+→ run action asynchronously
+```
+
+### Remember
+
+> **`Async` means asynchronous execution is requested.**
+
+---
+
+## 80. Practical CompletableFuture Chaining
+
+A common flow:
+
+```text
+Get User
+   ↓
+Transform User
+   ↓
+Consume Result
+```
+
+Example:
+
+```java
+CompletableFuture<String> userFuture =
+        CompletableFuture.supplyAsync(() -> "Rakesh");
+
+CompletableFuture<String> nameFuture =
+        userFuture.thenApply(name ->
+                name.toUpperCase()
+        );
+
+nameFuture.thenAccept(name ->
+        System.out.println(name)
+);
+```
+
+### Flow
+
+```text
+supplyAsync()
+     ↓
+"Rakesh"
+     ↓
+thenApply()
+     ↓
+"RAKESH"
+     ↓
+thenAccept()
+     ↓
+Print
+```
+
+### Remember
+
+> **CompletableFuture allows operations to be chained instead of manually calling `get()` between every step.**
+
+---
+
+# Deadlock ⭐
+
+## 81. Deadlock
+
+> **Deadlock occurs when two or more threads are permanently waiting for resources held by each other.**
+
+### Example
+
+```text
+T1 → owns A → waits for B
+T2 → owns B → waits for A
+
+       ↓
+    DEADLOCK
+```
+
+### Important
+
+> T1 is not literally waiting for T2.
+> T1 is waiting for a lock currently held by T2.
+
+### Java example
+
+```java
+Object lockA = new Object();
+Object lockB = new Object();
+```
+
+### T1
+
+```java
+synchronized (lockA) {
+    synchronized (lockB) {
+        // work
+    }
+}
+```
+
+### T2
+
+```java
+synchronized (lockB) {
+    synchronized (lockA) {
+        // work
+    }
+}
+```
+
+### Possible situation
+
+```text
+T1 → gets A
+T2 → gets B
+
+T1 → wants B → WAIT
+T2 → wants A → WAIT
+```
+
+Nobody can proceed.
+
+### Remember
+
+> **Deadlock = threads are stuck waiting for each other through locked resources.**
+
+---
+
+## 82. Four Conditions of Deadlock
+
+Deadlock can occur when **all four conditions** exist together.
+
+### 1. Mutual Exclusion
+
+* Only one thread can hold a resource at a time.
+
+```text
+T1 → owns A
+T2 → wants A → WAIT
+```
+
+### 2. Hold and Wait
+
+* A thread holds one resource while waiting for another.
+
+```text
+T1 → holds A → waits for B
+```
+
+### 3. No Preemption
+
+* A resource cannot be forcibly taken from the thread holding it.
+* The thread must release it.
+
+### 4. Circular Wait ⭐
+
+* Threads form a circular waiting chain.
+
+```text
+T1 → waits for B → T2
+T2 → waits for A → T1
+```
+
+### Interview memory
+
+> **M-H-N-C**
+
+```text
+M → Mutual Exclusion
+H → Hold and Wait
+N → No Preemption
+C → Circular Wait
+```
+
+If we break **any one** of these conditions, deadlock can be prevented.
+
+---
+
+## 83. Deadlock Prevention
+
+### 1. Acquire locks in the same order ⭐
+
+Problem:
+
+```text
+T1 → A → B
+T2 → B → A
+```
+
+Better:
+
+```text
+T1 → A → B
+T2 → A → B
+```
+
+Both threads follow the same order.
+
+Therefore, a circular wait cannot form.
+
+### Remember
+
+> **Consistent lock ordering → prevents circular wait → prevents deadlock.**
+
+---
+
+### 2. `tryLock()` with `ReentrantLock`
+
+Instead of waiting indefinitely:
+
+```java
+lock2.lock();
+```
+
+we can use:
+
+```java
+if (lock2.tryLock()) {
+    // got lock
+} else {
+    // couldn't get lock
+}
+```
+
+`tryLock()` allows a thread to attempt acquiring a lock **without waiting indefinitely**.
+
+Typical idea:
+
+```text
+Try A
+ ↓
+Try B
+ ↓
+Can't get B?
+ ↓
+Release A
+ ↓
+Try again later
+```
+
+### Important
+
+> `tryLock()` is not a magic deadlock remover; it gives us a way to avoid indefinite blocking.
+
+---
+
+## 84. Starvation
+
+> **Starvation occurs when one or more threads keep getting denied the resource/CPU time they need while other threads continue executing.**
+
+### Example
+
+```text
+T1 → waiting
+T2 → repeatedly gets lock
+T3 → repeatedly gets lock
+
+T1 → keeps getting denied
+```
+
+It can affect **one thread or multiple threads**.
+
+### Deadlock vs Starvation
+
+```text
+Deadlock
+→ threads are stuck waiting for each other
+
+Starvation
+→ one or more threads keep getting denied
+→ other threads continue running
+```
+
+### Remember
+
+> **Deadlock = waiting for each other**
+> **Starvation = repeatedly denied a chance to proceed**
+
+---
+
+## 85. Livelock
+
+> **Livelock occurs when threads are actively running and responding to each other, but still make no useful progress.**
+
+### Example
+
+```text
+T1 → detects conflict → releases
+T2 → detects conflict → releases
+
+T1 → retries
+T2 → retries
+
+T1 → releases
+T2 → releases
+
+...repeat forever
+```
+
+Both threads are **running**, but neither completes useful work.
+
+### Real-world example
+
+Two people in a narrow corridor:
+
+```text
+Person A → moves left
+Person B → moves left
+
+Person A → moves right
+Person B → moves right
+
+Person A → moves left
+Person B → moves left
+```
+
+Both keep reacting to each other but neither gets through.
+
+### Deadlock vs Starvation vs Livelock
+
+```text
+Deadlock
+→ stuck
+→ waiting for each other
+→ no progress
+
+Starvation
+→ repeatedly denied resource/CPU
+→ other threads continue
+
+Livelock
+→ actively running
+→ repeatedly reacting/retrying
+→ no useful progress
+```
+
+### 🧠 Easy memory
+
+> **Deadlock = Stuck**
+> **Starvation = Ignored**
+> **Livelock = Moving but going nowhere**
+
+
 # Topics Covered So Far
 
 1. What is a Thread
@@ -1187,24 +1838,11 @@ Now we've covered through:
 65. `DiscardOldestPolicy`
 66. `keepAliveTime`
 67. `ThreadFactory`
+68. `CompletableFuture`
+69. `Async + chaining + combining + exception handling`
+70. `Spring @Async`
+71. `DeadLock`
+72. `Starvation`
+73. `LiveLock`
 
 ---
-# 🚀 Next Major Topic
-
-## `CompletableFuture` ⭐
-
-We'll connect it with what you've already learned:
-
-```text
-ExecutorService
-      ↓
-Callable / Future
-      ↓
-CompletableFuture
-      ↓
-Async + chaining + combining + exception handling
-      ↓
-Spring @Async
-```
-
-This is the point where your Java concurrency knowledge starts becoming **very useful for real Spring Boot backend work and interviews**.
