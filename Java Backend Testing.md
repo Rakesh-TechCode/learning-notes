@@ -6,11 +6,11 @@
 
 # 1. Testing Basics ✅
 
-What is Testing?** Testing verifies that application code behaves correctly for expected, invalid, and failure scenarios.
+What is Testing? Testing verifies that application code behaves correctly for expected, invalid, and failure scenarios.
 
 ### Unit Testing
 
-What is it?** Testing a small unit of code independently, usually one method/class.
+What is it? Testing a small unit of code independently, usually one method/class.
 
 ```text
 Example:
@@ -24,7 +24,7 @@ Repository → mocked
 
 ### Integration Testing
 
-What is it?** Testing how multiple real application components work together.
+What is it? Testing how multiple real application components work together.
 
 ```text
 Controller
@@ -42,7 +42,7 @@ Database
 
 ### Positive Testing
 
-What is it?** Testing valid and expected inputs.
+What is it? Testing valid and expected inputs.
 
 ```text
 Valid order ID
@@ -56,7 +56,7 @@ Expected behavior should occur.
 
 ### Negative Testing
 
-What is it?** Testing invalid inputs and failure scenarios.
+What is it? Testing invalid inputs and failure scenarios.
 
 ```text
 Invalid ID
@@ -71,7 +71,7 @@ Expected error/exception behavior should occur.
 
 ### Test Pyramid
 
-What is it?** A testing approach where fast, focused tests form the foundation and higher-level tests are used less frequently.
+What is it? A testing approach where fast, focused tests form the foundation and higher-level tests are used less frequently.
 
 ```text
         Higher-level tests
@@ -85,7 +85,7 @@ What is it?** A testing approach where fast, focused tests form the foundation a
 
 ### Arrange → Act → Assert (AAA)
 
-What is it?** A simple structure for organizing a test.
+What is it? A simple structure for organizing a test.
 
 ```java
 // Arrange
@@ -109,13 +109,13 @@ Assert  → verify result
 
 # 2. JUnit 5 ✅
 
-What is JUnit 5?** A Java testing framework used to write and execute automated tests.
+What is JUnit 5? A Java testing framework used to write and execute automated tests.
 
 ## JUnit Basics
 
 ### `@Test`
 
-What is it?** Marks a method as a test method.
+What is it? Marks a method as a test method.
 
 ```java
 @Test
@@ -128,7 +128,7 @@ void shouldReturnOrder() {
 
 ### Basic Test Execution
 
-What is it?** Running test methods through the IDE/build tool and checking whether they pass or fail.
+What is it? Running test methods through the IDE/build tool and checking whether they pass or fail.
 
 ```text
 ✅ Test passed
@@ -139,7 +139,7 @@ What is it?** Running test methods through the IDE/build tool and checking wheth
 
 ## Assertions
 
-What are assertions?** They compare the actual result with the expected result.
+What are assertions? They compare the actual result with the expected result.
 
 ### `assertEquals()`
 
@@ -208,7 +208,7 @@ What is the test lifecycle?** It defines code that runs before/after test method
 
 ### `@BeforeEach`
 
-What is it?** Runs before every test.
+What is it? Runs before every test.
 
 ```java
 @BeforeEach
@@ -219,7 +219,7 @@ void setup() {
 
 ### `@AfterEach`
 
-What is it?** Runs after every test.
+What is it? Runs after every test.
 
 ```java
 @AfterEach
@@ -230,11 +230,11 @@ void cleanup() {
 
 ### `@BeforeAll`
 
-What is it?** Runs once before all tests in the class.
+What is it? Runs once before all tests in the class.
 
 ### `@AfterAll`
 
-> **What is it?** Runs once after all tests in the class.
+What is it?** Runs once after all tests in the class.
 
 Note: We discussed these, but skipped the hands-on because you already knew them.
 
