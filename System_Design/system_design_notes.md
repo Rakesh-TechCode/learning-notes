@@ -210,7 +210,7 @@ Stateless
 
 ## What is Availability?
 
-> **Availability = How often the system is up and usable when users need it.**
+Availability = How often the system is up and usable when users need it.
 
 Example:
 
