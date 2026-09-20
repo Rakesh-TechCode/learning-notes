@@ -254,7 +254,7 @@ To improve availability:
 
 ## SPOF — Single Point of Failure
 
-> A component whose failure can make the system unavailable.
+A component whose failure can make the system unavailable.
 
 Example:
 
@@ -276,7 +276,7 @@ If the only DB goes down, the application may become unavailable.
 
 ## What is Reliability?
 
-> **Reliability = Ability of the system to perform its intended job correctly and consistently over time.**
+Reliability = Ability of the system to perform its intended job correctly and consistently over time.
 
 ## Availability vs Reliability
 
@@ -349,7 +349,7 @@ Same order should NOT be created twice
 
 ## Interview shortcut
 
-> **Reliability = Can I trust the system to do the correct thing consistently?**
+Reliability = Can I trust the system to do the correct thing consistently?
 
 ---
 
@@ -357,7 +357,7 @@ Same order should NOT be created twice
 
 ## What is Performance?
 
-> **Performance = How efficiently and quickly the system handles a given workload.**
+Performance = How efficiently and quickly the system handles a given workload.
 
 Two important performance metrics:
 
@@ -369,7 +369,7 @@ Performance
 
 ## Latency
 
-> **Time taken for one request to receive a response.**
+Time taken for one request to receive a response.
 
 Example:
 
@@ -381,7 +381,7 @@ High latency → performance concern.
 
 ## Throughput
 
-> **Amount of work the system processes per unit of time.**
+Amount of work the system processes per unit of time.
 
 Example:
 
@@ -391,7 +391,7 @@ Example:
 
 ## Performance vs Throughput
 
-> **Performance is broader; throughput is one metric used to evaluate performance.**
+Performance is broader; throughput is one metric used to evaluate performance.
 
 ## Finding a Performance Bottleneck
 
@@ -433,7 +433,7 @@ MySQL is a strong **initial bottleneck candidate**, but you should confirm it ra
 
 ## Important
 
-> **High CPU is a signal, not automatically proof of a bottleneck.**
+High CPU is a signal, not automatically proof of a bottleneck.
 
 ---
 
