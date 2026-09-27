@@ -867,34 +867,6 @@ SERIALIZABLE
 
 ---
 
-# Overall Database Progress
-
-```text
-1. Database Fundamentals
-   └── ACID
-       ├── Atomicity       ✅
-       ├── Consistency     ✅
-       ├── Isolation       ✅
-       └── Durability      ✅
-
-2. Isolation Levels
-   ├── Dirty Read          ✅
-   ├── READ COMMITTED      ✅
-   ├── Non-Repeatable Read ✅
-   ├── REPEATABLE READ     ✅
-   ├── Phantom Read        ✅
-   ├── SERIALIZABLE        ✅
-   ├── Spring Boot/JPA     ✅
-   └── MySQL/InnoDB        ✅
-
-3. Database Locking
-   └── 🔜 NEXT
-       ├── Optimistic Locking
-       └── Pessimistic Locking
-```
-
-## 🔑 Ultra-Short Memory Trick
-
 ```text
 DIRTY
 → Uncommitted data
@@ -908,3 +880,767 @@ PHANTOM
 → Same query, different rows
 → SERIALIZABLE
 ```
+
+# 🔐 Database Locking — Quick Recall
+
+## 1. Locking Fundamentals
+
+**What it is:** Database locking controls concurrent access when multiple transactions may modify the same data.
+
+### Why locking is needed
+
+Without proper concurrency control:
+
+```text
+Order 101 = PENDING
+
+Transaction A → CONFIRMED
+Transaction B → CANCELLED
+
+Both read PENDING
+Both update
+Last update wins
+        ↓
+Lost Update
+```
+
+`@Transactional` alone does **not automatically prevent every lost-update scenario**.
+
+### Isolation vs Locking
+
+| Isolation                                     | Locking                     |
+| --------------------------------------------- | --------------------------- |
+| Controls what concurrent transactions can see | Controls conflicting access |
+| READ COMMITTED                                | Optimistic locking          |
+| REPEATABLE READ                               | Pessimistic locking         |
+| SERIALIZABLE                                  | DB row locks                |
+
+**Remember:** Isolation and locking are related but not the same thing.
+
+---
+
+# 2. Optimistic Locking
+
+**What it is:** Assume conflicts are relatively rare; allow transactions to work and detect a conflict when updating.
+
+### Problem
+
+Two requests read:
+
+```text
+Order 101
+status = PENDING
+version = 1
+```
+
+A updates first:
+
+```text
+CONFIRMED
+version = 2
+```
+
+B tries to update using version `1`.
+
+The version no longer matches → **conflict detected**.
+
+### JPA
+
+```java
+@Entity
+public class Order {
+
+    @Id
+    private Long id;
+
+    private String status;
+
+    @Version
+    private Long version;
+}
+```
+
+Hibernate conceptually performs:
+
+```sql
+UPDATE orders
+SET status = ?, version = 2
+WHERE id = 101
+AND version = 1;
+```
+
+If another transaction already changed the row:
+
+```text
+0 rows updated
+      ↓
+Version mismatch
+      ↓
+Optimistic locking exception
+```
+
+### Important exceptions
+
+* `OptimisticLockException` — JPA
+* `ObjectOptimisticLockingFailureException` — commonly surfaced by Spring
+
+`@Version` is managed by JPA/Hibernate; **don't manually increment it**.
+
+### Conflict handling
+
+Application decides what to do:
+
+```text
+Conflict
+   ↓
+  ┌───────────────┬────────────────┬─────────────────┐
+  ↓               ↓                ↓
+Reject      Refresh + retry   Business resolution
+```
+
+Automatic bounded retry can also be used when safe.
+
+**Important:** retry should happen in a **fresh transaction**.
+
+### When useful
+
+Good when:
+
+* Concurrent conflicts are relatively uncommon
+* You don't want to block transactions upfront
+* Conflicts can be safely detected and handled
+
+Very high contention can cause many conflicts/retries, making optimistic locking less attractive.
+
+### Quick Recall
+
+```text
+@Version
+   ↓
+Version mismatch
+   ↓
+Optimistic locking exception
+   ↓
+Transaction rollback
+   ↓
+Application handles conflict
+```
+
+### 🎯 3 YOE Interview Answer
+
+> **“`@Version` maintains a version number for an entity. When JPA updates the entity, it includes the version in the update condition. If another transaction has already modified the entity, the version no longer matches, so the update affects zero rows and Hibernate raises an optimistic locking exception instead of silently overwriting the newer data.”**
+
+---
+
+# 3. Pessimistic Locking
+
+**What it is:** Lock the database row upfront because conflicting access is expected.
+
+### Basic flow
+
+```text
+Transaction A
+     ↓
+Read Order 101
+     ↓
+🔒 Acquire write lock
+     ↓
+Update
+     ↓
+Commit / Rollback
+     ↓
+🔓 Lock released
+```
+
+### JPA
+
+```java
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+Optional<Order> findById(Long id);
+```
+
+Conceptually similar to:
+
+```sql
+SELECT *
+FROM orders
+WHERE id = 101
+FOR UPDATE;
+```
+
+Usually used inside:
+
+```java
+@Transactional
+```
+
+The lock is generally held until the transaction completes.
+
+### Example — Inventory
+
+```text
+Stock = 1
+
+Transaction A → locks product row
+             → reads 1
+             → decreases to 0
+             → commits
+
+Transaction B → waits
+             → sees stock = 0
+             → Out of Stock
+```
+
+### Downsides
+
+* Blocking / waiting
+* Lock contention
+* Deadlocks
+* Reduced concurrency
+
+Keep transactions **short**.
+
+Avoid holding DB locks while:
+
+* Calling external services
+* Performing heavy processing
+* Doing unnecessary work
+
+### Deadlock
+
+```text
+Transaction A:
+Lock 101 → waits for 102
+
+Transaction B:
+Lock 102 → waits for 101
+```
+
+Database detects the deadlock and generally aborts/rolls back one transaction.
+
+Reduce deadlocks with:
+
+1. Consistent lock ordering
+2. Short transactions
+3. Bounded retry when appropriate
+
+Retry should happen in a **fresh transaction**.
+
+### 🎯 3 YOE Interview Answer
+
+> **“No. Pessimistic locking can cause deadlocks. The database generally detects the deadlock and aborts one of the transactions, but the application should prevent or reduce deadlocks through consistent lock ordering and short transactions, and may retry the failed transaction when appropriate.”**
+
+---
+
+# 📊 Database Indexing — Quick Recall
+
+## 1. Index Fundamentals
+
+**What it is:** An index is a database data structure that helps locate rows efficiently without scanning the entire table.
+
+```sql
+CREATE INDEX idx_orders_user_id
+ON orders(user_id);
+```
+
+Without a useful index:
+
+```text
+Large table
+   ↓
+Scan many rows
+```
+
+With an index:
+
+```text
+Query
+ ↓
+Index
+ ↓
+Matching rows
+```
+
+**Index ≠ full copy of the table.**
+
+---
+
+# 2. MySQL / InnoDB & Index Storage
+
+```text
+MySQL
+  ↓
+InnoDB storage engine
+  ↓
+Table data + indexes
+  ↓
+Disk / SSD
+```
+
+InnoDB provides important features such as:
+
+* Transactions / ACID
+* Row-level locking
+* Foreign keys
+* Recovery mechanisms
+
+Indexes are **persisted on disk/SSD**.
+
+Frequently accessed index pages may also be cached in memory through the buffer pool.
+
+**Important:** Indexes are not stored only in RAM.
+
+---
+
+# 3. Primary Key Index
+
+When using InnoDB:
+
+```sql
+CREATE TABLE orders (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    status VARCHAR(20)
+);
+```
+
+The primary key automatically gets an index.
+
+So:
+
+```text
+❌ Don't create another normal index just for id
+```
+
+In InnoDB:
+
+```text
+Primary Key
+    ↓
+Clustered Index
+    ↓
+Actual row data
+```
+
+---
+
+# 4. Secondary Index
+
+A secondary index is an index created on a non-primary-key column.
+
+Example:
+
+```sql
+CREATE INDEX idx_orders_user
+ON orders(user_id);
+```
+
+Conceptually:
+
+```text
+Secondary Index
+(user_id)
+     ↓
+Primary-key values
+     ↓
+Clustered / Primary Key Index
+     ↓
+Complete row
+```
+
+### 🎯 Interview wording
+
+> **“In InnoDB, a secondary index contains the primary-key value for the indexed row. The primary key is then used to locate the complete row in the clustered index.”**
+
+---
+
+# 5. Which Columns Should Be Indexed?
+
+Good candidates can include columns frequently used for:
+
+* `WHERE` filtering
+* `JOIN` conditions
+* Common sorting/query patterns
+
+Consider:
+
+* Query frequency
+* Selectivity
+* Read/write workload
+* Storage cost
+
+Example:
+
+```sql
+SELECT *
+FROM orders
+WHERE user_id = 101;
+```
+
+If this query runs frequently, `user_id` is a good index candidate.
+
+### Low selectivity
+
+If a column has very few possible values:
+
+```text
+status:
+ACTIVE
+INACTIVE
+```
+
+and most rows are `ACTIVE`, an index may provide limited benefit.
+
+**Don't automatically index every column.**
+
+---
+
+# 6. Composite Index
+
+**What it is:** One index containing multiple columns.
+
+```sql
+CREATE INDEX idx_user_status
+ON orders(user_id, status);
+```
+
+### Important
+
+The **table's column order does not matter**.
+
+The **index's column order matters**.
+
+For:
+
+```text
+(user_id, status, created_at)
+```
+
+the useful leftmost prefixes are generally:
+
+```text
+user_id
+user_id + status
+user_id + status + created_at
+```
+
+But:
+
+```text
+status
+created_at
+status + created_at
+```
+
+do not get the same leftmost-prefix benefit.
+
+### Mental model
+
+```text
+Index:
+(user_id, status)
+
+user_id                  ✅
+user_id + status         ✅
+status alone             ⚠️
+```
+
+### Important distinction
+
+The query:
+
+```sql
+WHERE status = 'PAID'
+```
+
+can still return the correct data, but an index on:
+
+```text
+(user_id, status)
+```
+
+is generally not an efficient leftmost-prefix lookup for `status` alone.
+
+Don't change the query just to force an index—the query must represent the actual business requirement.
+
+---
+
+# 7. Index Maintenance
+
+The DB engine **automatically maintains indexes**.
+
+The developer does not manually update them.
+
+### INSERT
+
+```text
+Insert row
+   ↓
+Maintain affected indexes
+```
+
+### UPDATE
+
+If an indexed column changes:
+
+```text
+Old index entry
+      ↓
+Modify/remove
+      ↓
+New index entry
+```
+
+Updating a non-indexed column generally doesn't require changing that index's key.
+
+### DELETE
+
+```text
+Delete row
+   ↓
+Remove affected index entries
+```
+
+### Key idea
+
+**Automatic maintenance ≠ free maintenance.**
+
+The DB engine performs extra work using:
+
+* CPU
+* I/O
+* Memory/buffer resources
+* Storage
+* Processing time
+
+---
+
+# 8. Index Costs
+
+Indexes provide:
+
+```text
+Faster reads ✅
+```
+
+But introduce:
+
+```text
+Extra storage ❌
+Write maintenance ❌
+```
+
+They can add overhead to:
+
+* `INSERT`
+* `UPDATE`
+* `DELETE`
+
+Composite indexes generally require more storage than single-column indexes.
+
+### 🎯 Saved 3 YOE Interview Point
+
+> **“Indexes improve read performance, but they consume storage and add maintenance overhead to INSERT, UPDATE, and DELETE operations. Composite indexes can provide efficient multi-column lookups, but they also generally require more storage than single-column indexes.”**
+
+---
+
+# 9. When Indexes May Not Help
+
+An index isn't automatically faster.
+
+It may provide limited benefit when:
+
+### Small table
+
+Scanning a tiny table may already be cheap.
+
+### Low selectivity
+
+If a query returns a huge percentage of the table, an index may not help much.
+
+### Leading wildcard
+
+```sql
+WHERE name LIKE '%kumar'
+```
+
+A normal index generally can't efficiently use the unknown beginning of the value.
+
+Whereas:
+
+```sql
+WHERE name LIKE 'Rakesh%'
+```
+
+can generally make better use of a normal index.
+
+### Function on indexed column
+
+```sql
+WHERE LOWER(email) = 'rakesh@gmail.com'
+```
+
+A normal index on `email` may not be usable in the straightforward way.
+
+### Important
+
+The optimizer ultimately decides whether using an index is worthwhile.
+
+---
+
+# 10. `EXPLAIN`
+
+**What it is:** `EXPLAIN` shows the query execution plan MySQL intends to use.
+
+```sql
+EXPLAIN
+SELECT *
+FROM orders
+WHERE user_id = 101;
+```
+
+Useful things to inspect:
+
+### `key`
+
+Which index MySQL actually chose.
+
+```text
+key = idx_orders_user
+```
+
+### `possible_keys`
+
+Indexes MySQL considers potentially useful.
+
+**It does not mean the index was actually used.**
+
+### `rows`
+
+Estimated number of rows MySQL expects to examine.
+
+**It's an estimate, not necessarily the exact number.**
+
+### `type`
+
+Basic access method.
+
+```text
+ALL    → generally full table scan
+ref    → index-based lookup
+const  → very efficient constant/single-row case
+```
+
+### Production flow
+
+```text
+Slow query
+    ↓
+EXPLAIN
+    ↓
+Check chosen index
+    ↓
+Check access type
+    ↓
+Check estimated rows
+    ↓
+Investigate query/index/selectivity
+```
+
+### 🎯 3 YOE Interview Answer
+
+> **“I use `EXPLAIN` to inspect the query execution plan. I check which index MySQL selected, the access type, and the estimated rows examined. This helps determine whether the query is using an appropriate index or performing an expensive table scan.”**
+
+---
+
+# 11. Too Many Indexes
+
+Don't index every column just because indexes can improve reads.
+
+Too many indexes mean:
+
+```text
+More indexes
+    ↓
+More storage
+    +
+More INSERT/UPDATE/DELETE maintenance
+    +
+Potentially unnecessary indexes
+```
+
+An unused index can provide little/no read benefit while still carrying storage and maintenance costs.
+
+**Index based on actual query patterns.**
+
+---
+
+# 12. Production Index Decision
+
+Don't decide:
+
+```text
+Big table → automatically add indexes
+```
+
+Instead:
+
+```text
+Application query patterns
+          ↓
+Frequently executed queries
+          ↓
+Filtering / JOIN / sorting
+          ↓
+Selectivity
+          ↓
+Read vs write workload
+          ↓
+Storage cost
+          ↓
+EXPLAIN
+          ↓
+Verify actual benefit
+```
+
+### 🎯 Saved 3 YOE Interview Answer
+
+> **“I look at the application's query patterns rather than simply the table size. Frequently executed queries involving filtering, joins, or sorting are candidates for indexes. I also consider selectivity, read/write workload, storage, and the execution plan to verify whether the index actually improves the query.”**
+
+---
+
+# 🧠 Final Locking + Indexing Mental Map
+
+```text
+CONCURRENCY
+    │
+    ├── Isolation
+    │     └── What can transactions see?
+    │
+    └── Locking
+          ├── Optimistic
+          │     └── @Version → detect conflict
+          │
+          └── Pessimistic
+                └── Lock row → prevent conflicting access
+
+
+QUERY PERFORMANCE
+    │
+    └── Indexing
+          ├── Primary Index
+          ├── Secondary Index
+          ├── Composite Index
+          │     └── Leftmost-prefix
+          ├── Index Maintenance
+          ├── Selectivity
+          ├── Index Costs
+          └── EXPLAIN
+                └── Verify execution plan
+```
+
+## ✅ Status
+
+**LOCKING — COMPLETE**
+
+**INDEXING — COMPLETE**
