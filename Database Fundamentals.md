@@ -1639,8 +1639,2613 @@ QUERY PERFORMANCE
                 └── Verify execution plan
 ```
 
-## ✅ Status
+# Database — Quick Recall Notes — Continuation
 
-**LOCKING — COMPLETE**
+> **Previous notes covered:** Fundamentals → Isolation → Locking → Indexing.
 
-**INDEXING — COMPLETE**
+---
+
+# 5. Database Bottlenecks
+
+## What is a Database Bottleneck?
+
+**Definition:** A database bottleneck occurs when the database becomes the limiting factor for application performance.
+
+Common causes:
+
+* Slow queries
+* Missing/poor indexes
+* Excessive database requests
+* N+1 queries
+* High read/write traffic
+* Connection pool pressure
+
+### Identification Flow
+
+```text
+API latency
+    ↓
+DB query latency
+    ↓
+Which query is slow?
+    ↓
+EXPLAIN
+    ↓
+Index / query optimization
+```
+
+**Interview answer:**
+
+> A database bottleneck occurs when the database becomes the limiting factor for application performance. I would identify it using query metrics, logs, execution plans such as EXPLAIN, and database monitoring.
+
+---
+
+## Slow Queries
+
+**Definition:** A slow query takes significant time to execute and can keep database resources busy.
+
+Example:
+
+```sql
+SELECT *
+FROM orders
+WHERE user_id = 101;
+```
+
+If `orders` has 20M rows and there is no suitable index:
+
+```text
+20M rows
+   ↓
+No suitable index
+   ↓
+Possible full table scan
+   ↓
+High query latency
+```
+
+### Investigation Flow
+
+```text
+20M rows
+   ↓
+Query has no suitable index
+   ↓
+Possible full table scan
+   ↓
+High DB query latency
+   ↓
+Check query latency / metrics
+   ↓
+EXPLAIN
+   ↓
+Confirm access plan
+   ↓
+Add index if justified
+   ↓
+EXPLAIN again
+   ↓
+Verify improvement
+```
+
+---
+
+## Missing / Poor Indexes
+
+**Definition:** A missing or unsuitable index can force the database to examine many unnecessary rows.
+
+Example:
+
+```sql
+CREATE INDEX idx_orders_user_id
+ON orders(user_id);
+```
+
+Don't automatically add an index. Check:
+
+* Query pattern
+* Selectivity
+* Read/write workload
+* Existing indexes
+* `EXPLAIN`
+* Storage and write-maintenance cost
+
+---
+
+## `EXPLAIN`
+
+**Definition:** `EXPLAIN` shows the database query execution plan.
+
+```sql
+EXPLAIN
+SELECT *
+FROM orders
+WHERE user_id = 101;
+```
+
+Important things to inspect:
+
+* `key` → index actually chosen
+* `possible_keys` → possible indexes
+* `rows` → estimated rows examined
+* `type` → access method
+
+Basic `type` recall:
+
+```text
+ALL   → generally full table scan
+ref   → index lookup
+const → very efficient constant/single-row lookup
+```
+
+### Interview answer
+
+> I use `EXPLAIN` to inspect the query execution plan, especially the selected index, access type, and estimated rows examined. This helps identify expensive scans and unsuitable index usage.
+
+---
+
+# Too Many Database Requests
+
+**Definition:** Excessive database calls can increase DB load, connection usage, network overhead, and application latency.
+
+Important:
+
+> More queries are not automatically bad. The problem is unnecessary or excessive queries relative to workload.
+
+Mental model:
+
+```text
+Query count
+     ×
+Request volume
+     ×
+Query cost
+     ↓
+Database load
+```
+
+---
+
+# N+1 Problem
+
+**Definition:** N+1 occurs when the application executes one query to fetch N records and then executes an additional query for each record.
+
+```text
+1 query
+   ↓
+Fetch N records
+   ↓
+1 additional query per record
+   ↓
+N additional queries
+   ↓
+Total = N + 1
+```
+
+## Example
+
+```java
+List<Order> orders = orderRepository.findAll();
+
+for (Order order : orders) {
+    System.out.println(order.getCustomer().getName());
+}
+```
+
+Conceptually:
+
+```text
+1 query → fetch 100 orders
+100 queries → fetch each customer's data
+
+Total = 101 queries
+```
+
+---
+
+## N+1 in JPA/Hibernate
+
+**Definition:** JPA/Hibernate can trigger N+1 when accessing associated entities causes an additional query for each parent record.
+
+Example:
+
+```text
+Orders query
+     ↓
+100 orders
+     ↓
+Customer query for Order 1
+Customer query for Order 2
+...
+Customer query for Order 100
+```
+
+---
+
+## Practical N+1 Example
+
+Order Service needs:
+
+* Order
+* Order items
+* Product details
+
+```java
+Order order = orderRepository.findById(orderId);
+
+List<OrderItem> items =
+        orderItemRepository.findByOrderId(orderId);
+
+for (OrderItem item : items) {
+    Product product =
+        productRepository.findById(item.getProductId());
+}
+```
+
+For 10 items:
+
+```text
+1 order query
++ 1 item query
++ 10 product queries
+--------------------
+= 12 DB queries
+```
+
+At 1,000 API requests/sec:
+
+```text
+12 × 1,000
+= 12,000 DB queries/sec
+```
+
+This can put significant pressure on the database.
+
+---
+
+## N+1 Solutions
+
+### `JOIN FETCH`
+
+**Definition:** Fetch related data using a join in one query when appropriate.
+
+```java
+@Query("""
+    SELECT o
+    FROM Order o
+    JOIN FETCH o.customer
+    WHERE o.id = :id
+""")
+Optional<Order> findOrderWithCustomer(Long id);
+```
+
+---
+
+### DTO Projection
+
+**Definition:** Fetch only the columns/data required by the API instead of loading complete entities.
+
+Useful when the response needs a limited set of fields.
+
+---
+
+### Batch Fetching
+
+**Definition:** Fetch related records in batches instead of executing one query per record.
+
+Example idea:
+
+```text
+100 individual queries
+        ↓
+Fetch related data in batches
+        ↓
+Far fewer DB requests
+```
+
+### Interview answer
+
+> I would first confirm the N+1 problem using query logs and monitoring. Depending on the use case, I could use JOIN FETCH, DTO projections, or batch fetching, and then verify that query count and latency improved.
+
+---
+
+# High Read Traffic
+
+**Definition:** A workload where the database receives a large number of read operations.
+
+Example:
+
+```text
+10,000 requests/sec
+
+9,500 reads
+  500 writes
+```
+
+Even optimized queries can overload one database because DB resources are finite:
+
+* CPU
+* Memory
+* Disk I/O
+* Connections
+* Query-processing capacity
+
+For read-heavy workloads:
+
+```text
+Primary DB
+    ↓
+Read Replicas
+```
+
+can distribute suitable reads.
+
+---
+
+# High Write Traffic
+
+**Definition:** A workload where database writes become the major source of database load.
+
+Example:
+
+```text
+10,000 requests/sec
+
+2,000 reads
+8,000 writes
+```
+
+Typical approaches:
+
+* Optimize writes
+* Batch writes where appropriate
+* Async processing for suitable workloads
+* Sharding when necessary
+
+Kafka can buffer/smooth suitable workloads, but it does **not magically increase sustained database write capacity**.
+
+### Recall
+
+```text
+Read-heavy
+    ↓
+Read replicas may help
+
+
+Write-heavy
+    ↓
+Optimize writes / batching /
+async processing / sharding where appropriate
+```
+
+---
+
+# Read-Heavy vs Write-Heavy
+
+| Workload    | Typical scaling consideration                                              |
+| ----------- | -------------------------------------------------------------------------- |
+| Read-heavy  | Read replicas                                                              |
+| Write-heavy | Write optimization, batching, async processing, sharding where appropriate |
+
+Always:
+
+> **Find the bottleneck first.**
+
+---
+
+# Connection Pool Pressure
+
+**Definition:** Connection pool pressure occurs when application requests need more DB connections than are currently available in the connection pool.
+
+Example:
+
+```text
+Pool size = 20
+
+20 connections → busy
+100 requests → waiting
+```
+
+The DB itself may not necessarily be overloaded; the application may simply be waiting for available connections.
+
+### Identification Flow
+
+```text
+API latency
+    ↓
+DB-related latency
+    ↓
+Are requests waiting for connections?
+    ↓
+Check connection pool metrics
+    ↓
+Active connections
+Idle connections
+Pending requests
+Pool utilization
+    ↓
+Investigate underlying cause
+```
+
+---
+
+## Connection Pool Metrics
+
+Useful signals:
+
+* Active connections
+* Idle connections
+* Pending/waiting requests
+* Pool utilization
+* Connection acquisition time
+
+Example:
+
+```text
+Pool size = 20
+Active = 20
+Idle = 0
+Pending = 150
+```
+
+Strong signal of connection pool pressure.
+
+---
+
+## Why Not Blindly Increase Pool Size?
+
+Don't immediately change:
+
+```text
+20 → 100
+```
+
+because:
+
+```text
+Bigger pool
+    ↓
+More concurrent DB work
+    ↓
+More DB CPU / I/O / lock contention
+    ↓
+Database may become the bottleneck
+```
+
+First investigate:
+
+```text
+Connection pool pressure
+        ↓
+Slow queries?
+Long transactions?
+High concurrency?
+Connection leaks?
+        ↓
+Fix underlying cause
+        ↓
+If pool is genuinely undersized
+        ↓
+Tune based on workload + DB capacity
+```
+
+---
+
+# HikariCP
+
+**Definition:** HikariCP is a JDBC database connection pool commonly used by Spring Boot.
+
+It maintains reusable database connections so the application doesn't create a new connection for every request.
+
+### Overall Flow
+
+```text
+Spring Boot
+    ↓
+JPA / Hibernate
+    ↓
+DataSource
+    ↓
+HikariCP
+    ↓
+JDBC Driver
+    ↓
+MySQL
+    ↓
+Database
+```
+
+### Request Flow
+
+```text
+Request
+   ↓
+HikariCP
+   ↓
+Borrow connection
+   ↓
+JDBC
+   ↓
+MySQL
+   ↓
+Execute SQL
+   ↓
+Return connection
+   ↓
+HikariCP
+```
+
+---
+
+## HikariCP Configuration
+
+Practical snapshot:
+
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/order_db
+spring.datasource.username=root
+spring.datasource.password=password
+
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.connection-timeout=30000
+```
+
+### `maximum-pool-size`
+
+**Definition:** Maximum number of connections that the HikariCP pool can contain.
+
+```properties
+spring.datasource.hikari.maximum-pool-size=20
+```
+
+Approximately 20 DB connections can be available from that application instance.
+
+---
+
+### `minimum-idle`
+
+**Definition:** Minimum idle connections HikariCP tries to maintain as a pool-management target.
+
+```properties
+spring.datasource.hikari.minimum-idle=5
+```
+
+---
+
+### `connection-timeout`
+
+**Definition:** Maximum time a request waits to obtain a connection from the pool.
+
+```properties
+spring.datasource.hikari.connection-timeout=30000
+```
+
+```text
+30,000 ms = 30 seconds
+```
+
+Important:
+
+```text
+Connection timeout
+→ Waiting for HikariCP connection
+
+Query timeout
+→ Waiting for SQL execution
+```
+
+They are different.
+
+---
+
+## Pool Size Per Application Instance
+
+Pool size is **per application instance**.
+
+Example:
+
+```text
+3 Order Service instances
+        ×
+20 connections each
+        =
+60 potential DB connections
+```
+
+```text
+Instance 1 → 20
+Instance 2 → 20
+Instance 3 → 20
+              ↓
+          MySQL
+       ≈ 60 potential
+       connections
+```
+
+### Interview point
+
+> I wouldn't blindly increase the connection pool size. I would first investigate slow queries, long transactions, high concurrency, connection leaks, and database capacity.
+
+---
+
+# 6. Read Replicas
+
+## Primary DB vs Replica
+
+**Definition:** The primary database handles writes, while read replicas contain replicated data and can serve suitable read traffic.
+
+```text
+                    Application
+                  /            \
+               WRITE            READ
+                  ↓              ↓
+             ┌─────────┐    ┌──────────┐
+             │ Primary │───→│ Replica  │
+             │   DB    │    │    DB    │
+             └─────────┘    └──────────┘
+```
+
+---
+
+## Why Read Replicas?
+
+**Definition:** Read replicas scale read capacity by distributing suitable reads across additional database instances.
+
+Useful for:
+
+```text
+Read-heavy workload
+        ↓
+Primary receives writes
+        ↓
+Replicas handle suitable reads
+```
+
+Multiple replicas:
+
+```text
+                       Application
+                    /              \
+                 WRITE              READ
+                    ↓                ↓
+              ┌─────────┐      ┌──────────┐
+              │ Primary │─────→│ Replica 1│
+              └─────────┘      └──────────┘
+                    │
+                    └─────────→┌──────────┐
+                               │ Replica 2│
+                               └──────────┘
+```
+
+---
+
+## Replication
+
+**Definition:** Replication copies database changes from a primary database to one or more replicas.
+
+```text
+Primary
+   ↓
+Replication
+   ↓
+Replica
+```
+
+Spring Boot does not itself create the database replicas. Database infrastructure/cloud services handle replication; the application later needs appropriate read/write routing.
+
+---
+
+## Replication Lag
+
+**Definition:** Replication lag is the delay between a change being committed on the primary and becoming available on a replica.
+
+Example:
+
+```text
+Primary → Product price = ₹900
+Replica → Product price = ₹1000
+```
+
+The replica is temporarily behind.
+
+---
+
+## Stale Reads
+
+**Definition:** A stale read occurs when a replica returns older data because replication has not caught up.
+
+Example:
+
+```text
+User updates order → CONFIRMED
+        ↓
+Immediately reads replica
+        ↓
+Replica still says → PENDING
+```
+
+---
+
+## When to Read from Primary
+
+Use the primary when the latest committed state is important.
+
+Examples:
+
+* Immediately after an order update
+* Payment status confirmation
+* Consistency-sensitive operations
+
+Suitable replica reads may include:
+
+* Product browsing
+* Catalog
+* Search
+* Reports
+* Analytics-style reads
+* Non-critical reads
+
+---
+
+## Replica Failure
+
+**Definition:** A replica failure means that replica should be removed from read traffic and another replica or appropriate fallback can be used.
+
+```text
+Replica 1 ❌
+    ↓
+Route reads to Replica 2
+```
+
+---
+
+## Primary Failure / Failover
+
+**Definition:** Failover is the process of promoting or switching to another database instance when the primary fails, depending on the infrastructure/setup.
+
+A replica may potentially be promoted to primary.
+
+---
+
+## Read Replica ≠ Backup
+
+A replica is primarily for:
+
+* Read scaling
+* Availability/failover support
+
+It is **not a replacement for backups**.
+
+Replicated deletes can also reach replicas.
+
+---
+
+## When Read Replicas Don't Solve the Problem
+
+Read replicas don't directly fix:
+
+* Slow queries
+* Missing indexes
+* N+1 queries
+* Poor query design
+* Write-heavy bottlenecks
+
+Always identify the actual bottleneck first.
+
+---
+
+## Application Read/Write Routing
+
+```text
+                 Application
+                 /          \
+                /            \
+           WRITE              READ
+              ↓                ↓
+          Primary          Replica
+              │
+              └──── replication ────→ Replica
+```
+
+---
+
+## Read Replicas vs Write-Heavy Workloads
+
+```text
+Read-heavy
+    ↓
+Read replicas may help
+
+
+Write-heavy
+    ↓
+Optimize writes / batching /
+async processing / sharding where appropriate
+```
+
+### Strong 3-YOE Interview Answer
+
+> First I would identify whether the bottleneck is actually read traffic. If the workload is read-heavy and queries are already optimized and properly indexed, I would consider read replicas. Writes would continue going to the primary, while suitable reads would be distributed across replicas. I would also consider replication lag because replicas may temporarily return stale data, so consistency-sensitive reads may need to go to the primary. I would also account for replica failures and have appropriate failover or fallback mechanisms.
+
+---
+
+# 7. Sharding
+
+## What is Sharding?
+
+**Definition:** Sharding is horizontally splitting a large dataset across multiple independent database instances called shards.
+
+```text
+                    Orders
+                      ↓
+                 Shard Router
+                /      |      \
+               ↓       ↓       ↓
+          ┌────────┐ ┌────────┐ ┌────────┐
+          │Shard 1 │ │Shard 2 │ │Shard 3 │
+          │Orders  │ │Orders  │ │Orders  │
+          └────────┘ └────────┘ └────────┘
+```
+
+Example:
+
+```text
+90M orders
+    ↓
+30M → Shard 1
+30M → Shard 2
+30M → Shard 3
+```
+
+---
+
+## Horizontal Data Partitioning
+
+**Definition:** Horizontal partitioning splits rows of the same logical table across different shards.
+
+```text
+Shard 1 → some orders
+Shard 2 → different orders
+Shard 3 → different orders
+```
+
+---
+
+## Shards as Separate DB Instances
+
+Typically:
+
+```text
+Shard 1 → DB Instance 1
+Shard 2 → DB Instance 2
+Shard 3 → DB Instance 3
+```
+
+---
+
+## Shard Key
+
+**Definition:** A shard key is the field used to determine which shard stores a record.
+
+Example:
+
+```text
+user_id
+```
+
+Possible range:
+
+```text
+user_id 1 - 1,000,000
+        → Shard 1
+
+user_id 1,000,001 - 2,000,000
+        → Shard 2
+
+user_id 2,000,001 - 3,000,000
+        → Shard 3
+```
+
+---
+
+## Shard Routing
+
+**Definition:** Shard routing determines which shard should execute a query.
+
+```text
+Request
+   ↓
+Order Service
+   ↓
+Read user_id
+   ↓
+Shard Router
+   ↓
+Determine shard
+   ↓
+Execute query
+```
+
+Example:
+
+```text
+user_id = 1,500,000
+        ↓
+Shard 2
+```
+
+---
+
+## Range-Based Sharding
+
+**Definition:** Range-based sharding assigns ranges of shard-key values to different shards.
+
+Example:
+
+```text
+1 - 1,000,000       → Shard 1
+1,000,001 - 2,000,000 → Shard 2
+2,000,001 - 3,000,000 → Shard 3
+```
+
+---
+
+## Querying Using the Shard Key
+
+If:
+
+```sql
+WHERE user_id = 1500
+```
+
+and `user_id` is the shard key:
+
+```text
+Request
+   ↓
+user_id = 1500
+   ↓
+Router
+   ↓
+Correct shard
+   ↓
+Query only that shard
+```
+
+Efficient because the application knows where the data belongs.
+
+---
+
+## Non-Shard-Key Queries
+
+Example:
+
+```sql
+WHERE status = 'PAID'
+```
+
+If `status` isn't the shard key, the application may not know which shard contains matching records.
+
+This can lead to:
+
+```text
+status = PAID
+      ↓
+ ┌────┼────┐
+ ↓    ↓    ↓
+S1   S2   S3
+ ↓    ↓    ↓
+Query each shard
+```
+
+---
+
+## Scatter-Gather
+
+**Definition:** Scatter-gather means sending a query to multiple shards and gathering their results.
+
+```text
+             status = PAID
+                    ↓
+             ┌──────┼──────┐
+             ↓      ↓      ↓
+          Shard 1 Shard 2 Shard 3
+             ↓      ↓      ↓
+           Query  Query  Query
+             \      |      /
+                    ↓
+                 Gather
+                 results
+```
+
+---
+
+## Hot Shards
+
+**Definition:** A hot shard receives disproportionately high traffic or data compared with other shards.
+
+Example:
+
+```text
+Shard 1 → 90% traffic
+Shard 2 → 5%
+Shard 3 → 5%
+```
+
+The shard key may be causing uneven distribution.
+
+---
+
+## Cross-Shard Queries
+
+**Definition:** A query requiring data from multiple shards is a cross-shard query.
+
+These can be more expensive and complex than querying one shard.
+
+---
+
+## Cross-Shard Joins
+
+**Definition:** A join involving data stored on different shards is a cross-shard join.
+
+These are more complicated and can be expensive.
+
+---
+
+## Cross-Shard Transactions
+
+**Definition:** A transaction involving multiple shards is harder to coordinate because each shard has its own database transaction.
+
+Example:
+
+```text
+Update Shard 1 → SUCCESS
+Update Shard 2 → FAILURE
+```
+
+Now coordinating rollback/commit is more complicated.
+
+Prefer designing operations so that they stay within one shard where possible.
+
+---
+
+## Data Migration / Rebalancing
+
+**Definition:** Rebalancing moves data between shards to distribute storage and workload more evenly.
+
+Needed when:
+
+```text
+Shard 1 → overloaded
+Shard 2 → lightly loaded
+Shard 3 → lightly loaded
+```
+
+Migration/rebalancing adds operational complexity.
+
+---
+
+## Sharding Trade-offs
+
+Benefits:
+
+* Distributes large datasets
+* Distributes database workload
+* Can scale beyond one database instance
+
+Costs:
+
+* Routing complexity
+* Cross-shard queries
+* Cross-shard joins
+* Cross-shard transactions
+* Hot shards
+* Rebalancing/data migration
+* Operational complexity
+
+---
+
+## When NOT to Shard
+
+Avoid unnecessary sharding when:
+
+* Dataset is small
+* Traffic is manageable
+* One DB can handle workload
+* Simpler optimizations haven't been exhausted
+
+### Decision Flow
+
+```text
+Database bottleneck
+       ↓
+Check slow queries
+       ↓
+Check indexes
+       ↓
+Check N+1 / excessive DB calls
+       ↓
+Check caching
+       ↓
+Check read replicas for read-heavy workload
+       ↓
+Can one DB still handle the
+data/workload?
+       ↓
+       NO
+       ↓
+Consider sharding
+```
+
+---
+
+## Read Replica vs Sharding
+
+```text
+Read Replica
+     ↓
+Same data
+     ↓
+Scale READS
+```
+
+```text
+Sharding
+     ↓
+Different data
+     ↓
+Scale DATA + WORKLOAD
+```
+
+---
+
+## Sharding + Replication
+
+**Definition:** Sharding splits the dataset; replication creates copies of each shard.
+
+```text
+                 Application
+                     ↓
+                Shard Router
+                 /         \
+                ↓           ↓
+           Shard 1       Shard 2
+              │             │
+          ┌───┴───┐     ┌───┴───┐
+          ↓       ↓     ↓       ↓
+       Primary Replica Primary Replica
+```
+
+Example:
+
+```text
+Shard 1 → users 1–1000
+          Primary + Replica
+
+Shard 2 → users 1001–2000
+          Primary + Replica
+```
+
+---
+
+## Strong 3-YOE Sharding Answer
+
+> Sharding can improve scalability by distributing data and workload across multiple database instances, but it also increases application complexity. We need shard-key-based routing, and cross-shard queries and transactions become more complicated. A poor shard key can also create uneven distribution or hot shards. Therefore, I would consider sharding after optimizing queries, indexes, database access patterns, and read scaling, when a single database can no longer handle the required data or workload.
+
+---
+
+# 8. Spring Boot / JPA Practical Database Concepts
+
+# 8.1 Transaction Propagation
+
+## `Propagation.REQUIRED`
+
+**Definition:** `REQUIRED` joins an existing transaction or creates a new transaction if none exists.
+
+```java
+@Transactional(propagation = Propagation.REQUIRED)
+public void saveOrderAudit() {
+    // DB operation
+}
+```
+
+### Existing Transaction
+
+```text
+createOrder()
+     ↓
+Transaction A starts
+     ↓
+saveOrder()
+     ↓
+saveOrderAudit()
+     ↓
+REQUIRED checks:
+transaction active?
+     ↓
+YES
+     ↓
+Join Transaction A
+     ↓
+A commits
+```
+
+### No Existing Transaction
+
+```text
+saveOrderAudit()
+     ↓
+No active transaction
+     ↓
+REQUIRED
+     ↓
+Create Transaction A
+     ↓
+Execute
+     ↓
+Commit
+```
+
+Important:
+
+> Two methods having `@Transactional` does not automatically mean two transactions.
+
+With `REQUIRED`, they can participate in the same transaction.
+
+---
+
+# `REQUIRES_NEW`
+
+**Definition:** `REQUIRES_NEW` always starts an independent transaction and suspends the existing transaction if one exists.
+
+```java
+@Transactional(propagation = Propagation.REQUIRES_NEW)
+public void saveAudit() {
+    // independent transaction
+}
+```
+
+### Short Practical Flow
+
+```text
+Transaction A
+     ↓
+createOrder()
+     ↓
+saveOrder()
+     ↓
+saveAudit() → REQUIRES_NEW
+     ↓
+SUSPEND A
+     ↓
+Transaction B
+     ↓
+saveAudit()
+     ↓
+COMMIT B
+     ↓
+RESUME A
+     ↓
+continue createOrder()
+     ↓
+COMMIT / ROLLBACK A
+```
+
+Important:
+
+> A does not start again. It is suspended and then resumes.
+
+Possible outcome:
+
+```text
+A commits, B commits
+A rolls back, B commits
+A commits, B rolls back
+```
+
+Transaction boundaries are independent, but **exception propagation is a separate concern**.
+
+If B throws an exception and A doesn't handle it, the exception can still propagate into A.
+
+---
+
+## REQUIRED vs REQUIRES_NEW
+
+|                      | REQUIRED            | REQUIRES_NEW |
+| -------------------- | ------------------- | ------------ |
+| Existing transaction | Joins it            | Suspends it  |
+| New transaction      | Only if none exists | Always       |
+| Same transaction?    | Usually yes         | No           |
+| Independent commit?  | No                  | Yes          |
+
+---
+
+# 8.2 Spring Proxy
+
+## What is a Spring Proxy?
+
+**Definition:** A Spring proxy is a wrapper around a Spring-managed bean that can intercept method calls and apply framework behavior such as transaction management.
+
+```text
+You
+ ↓
+Spring Proxy
+ ↓
+Actual Service Object
+```
+
+For `@Transactional`:
+
+```text
+External call
+      ↓
+Spring Proxy
+      ↓
+Start Transaction
+      ↓
+Actual method
+      ↓
+Method finishes
+      ↓
+Commit / Rollback
+```
+
+---
+
+## External Call → Spring Proxy
+
+```java
+orderService.createOrder();
+```
+
+Conceptually:
+
+```text
+External caller
+      ↓
+OrderService Proxy
+      ↓
+createOrder()
+      ↓
+Transaction handling
+```
+
+---
+
+## Self-Invocation
+
+**Definition:** Self-invocation occurs when a method calls another method on the same object using `this`.
+
+```java
+@Transactional
+public void A() {
+    this.B();
+}
+
+@Transactional(propagation = Propagation.REQUIRES_NEW)
+public void B() {
+}
+```
+
+Flow:
+
+```text
+External call
+     ↓
+Spring Proxy
+     ↓
+A()
+     ↓
+this.B()
+     ↓
+B()
+```
+
+The `this.B()` call does not go back through the Spring proxy.
+
+Therefore the proxy-based transactional interception for B is bypassed.
+
+---
+
+## Why `REQUIRES_NEW` Can Fail with Self-Invocation
+
+Because:
+
+```text
+A()
+ ↓
+this.B()
+ ↓
+B()
+```
+
+doesn't go through the proxy again.
+
+So Spring doesn't get the proxy interception opportunity to apply the `REQUIRES_NEW` behavior to that internal call.
+
+---
+
+## Separate Spring Bean / Service
+
+Common practical approach:
+
+```java
+@Service
+public class OrderService {
+
+    private final AuditService auditService;
+
+    @Transactional
+    public void createOrder() {
+        saveOrder();
+        auditService.saveAudit();
+    }
+}
+```
+
+```java
+@Service
+public class AuditService {
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void saveAudit() {
+        // audit
+    }
+}
+```
+
+Flow:
+
+```text
+You
+ ↓
+OrderService Proxy
+ ↓
+createOrder()
+ ↓
+auditService.saveAudit()
+ ↓
+AuditService Proxy
+ ↓
+REQUIRES_NEW
+ ↓
+Suspend A → Start B
+```
+
+The important concept is not "REQUIRES_NEW requires another service."
+
+The important point is:
+
+> The call must go through Spring's transactional interception/proxy mechanism for proxy-based `@Transactional` behavior to be applied.
+
+---
+
+# 8.3 Practical Optimistic Locking
+
+## `@Version`
+
+**Definition:** `@Version` enables optimistic locking in JPA by maintaining a version value for an entity.
+
+### Practical Entity
+
+```java
+@Entity
+public class Order {
+
+    @Id
+    private Long id;
+
+    private String status;
+
+    @Version
+    private Long version;
+}
+```
+
+Hibernate manages the version.
+
+**Do not manually increment it.**
+
+---
+
+## Version Column
+
+Example:
+
+```text
+orders
+
+id     status       version
+---------------------------
+101    PENDING         1
+102    CONFIRMED       3
+103    CANCELLED       2
+```
+
+---
+
+## Concurrent Update Scenario
+
+A and B both read:
+
+```text
+Order 101
+version = 5
+```
+
+A updates successfully:
+
+```text
+version 5 → 6
+```
+
+Conceptually:
+
+```sql
+UPDATE orders
+SET status = ?,
+    version = 6
+WHERE id = 101
+AND version = 5;
+```
+
+Then B still has version `5`.
+
+B attempts:
+
+```sql
+UPDATE orders
+SET status = ?,
+    version = 6
+WHERE id = 101
+AND version = 5;
+```
+
+But DB now has version `6`.
+
+Therefore:
+
+```text
+0 rows updated
+      ↓
+Optimistic locking conflict
+      ↓
+Exception
+```
+
+---
+
+## `@Transactional` + `@Version`
+
+```text
+@Transactional
+      ↓
+Load Order
+      ↓
+Change status
+      ↓
+Hibernate tracks entity
+      ↓
+Transaction flush
+      ↓
+UPDATE ... WHERE id=? AND version=?
+      ↓
+Version matches?
+   ↙       ↘
+ YES       NO
+  ↓         ↓
+Update    Exception
+```
+
+---
+
+## Exception
+
+Common Spring exception:
+
+```text
+ObjectOptimisticLockingFailureException
+```
+
+JPA-level exception:
+
+```text
+OptimisticLockException
+```
+
+---
+
+## Handling the Conflict
+
+```text
+Optimistic Lock Exception
+          ↓
+   ┌──────┼──────────┐
+   ↓      ↓          ↓
+ Reject  Refresh    Propagate
+         + retry
+```
+
+A retry should generally happen in a **fresh transaction**.
+
+For an API, a common choice is:
+
+```text
+HTTP 409 Conflict
+```
+
+The exact API response is an application design decision.
+
+---
+
+## Short Real Scenario
+
+```text
+Order 101
+version = 5
+
+A + B read version 5
+        ↓
+A updates → version 6
+        ↓
+B updates using version 5
+        ↓
+0 rows updated
+        ↓
+Optimistic locking exception
+        ↓
+Reject / Refresh + retry / Propagate
+```
+
+---
+
+# 8.4 Practical Pessimistic Locking
+
+## `@Lock`
+
+**Definition:** JPA's `@Lock` specifies the locking mode used when retrieving an entity.
+
+```java
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+Optional<Order> findById(Long id);
+```
+
+---
+
+## `PESSIMISTIC_WRITE`
+
+**Definition:** Requests a database-level write lock so conflicting transactions cannot freely modify the same row simultaneously.
+
+Conceptually:
+
+```sql
+SELECT *
+FROM orders
+WHERE id = 101
+FOR UPDATE;
+```
+
+---
+
+## `@Transactional` + Database Lock
+
+```java
+@Transactional
+public void cancelOrder(Long orderId) {
+
+    Order order = orderRepository.findById(orderId)
+            .orElseThrow();
+
+    order.setStatus("CANCELLED");
+}
+```
+
+Repository:
+
+```java
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+Optional<Order> findById(Long id);
+```
+
+Short flow:
+
+```text
+BEGIN
+  ↓
+SELECT ... FOR UPDATE
+  ↓
+🔒 Lock acquired
+  ↓
+Update order
+  ↓
+COMMIT
+  ↓
+🔓 Lock released
+```
+
+---
+
+## Request A Gets Lock / Request B Waits
+
+**Definition:** A conflicting transaction generally waits for the lock to be released, or may fail because of timeout/deadlock behavior.
+
+```text
+Request A
+   ↓
+@Transactional
+   ↓
+🔒 Lock Order 101
+   ↓
+Update
+   ↓
+COMMIT
+   ↓
+🔓 Lock released
+
+
+Request B
+   ↓
+Try same row
+   ↓
+⏳ WAIT
+   ↓
+A commits
+   ↓
+🔓 Lock released
+   ↓
+B gets lock
+   ↓
+Reads latest state
+```
+
+### Key Interview Wording
+
+> With pessimistic locking, a conflicting transaction generally waits for the lock to be released, or it may fail if a lock timeout or deadlock occurs.
+
+---
+
+## Lock Timeout
+
+**Definition:** A lock timeout limits how long a transaction waits for a conflicting lock.
+
+It prevents the request from waiting indefinitely, depending on database/configuration.
+
+---
+
+## Deadlock
+
+**Definition:** A deadlock occurs when transactions wait for locks held by each other.
+
+```text
+Transaction A
+    ↓
+Lock 101
+    ↓
+Wait for 102
+
+
+Transaction B
+    ↓
+Lock 102
+    ↓
+Wait for 101
+```
+
+```text
+A waits for B
+B waits for A
+     ↓
+Deadlock
+```
+
+The database generally detects the deadlock and aborts one transaction.
+
+### Reduce Deadlocks
+
+* Consistent lock ordering
+* Short transactions
+* Avoid unnecessary locks
+* Retry the failed transaction when appropriate
+
+### Saved Interview Answer
+
+> No. Pessimistic locking can cause deadlocks. The database generally detects the deadlock and aborts one of the transactions, but the application should reduce deadlocks through consistent lock ordering and short transactions, and may retry the failed transaction when appropriate.
+
+---
+
+## Keep Locking Transactions Short
+
+Avoid:
+
+```java
+@Transactional
+public void cancelOrder(Long id) {
+
+    Order order = repository.findById(id);
+
+    callPaymentService();       // external call
+    callAnotherService();       // external call
+    heavyProcessing();
+
+    order.setStatus("CANCELLED");
+}
+```
+
+Because:
+
+```text
+DB lock
+   ↓
+External service waiting
+   ↓
+Long transaction
+   ↓
+Other transactions wait
+   ↓
+Lock / connection contention
+```
+
+### Practical Rule
+
+> Keep pessimistic-locking transactions short and avoid unnecessary external calls while holding database locks.
+
+---
+
+# 8.5 Practical JPA Index
+
+## `@Table`
+
+**Definition:** JPA's `@Table` maps an entity to a database table and can also define table-level indexes and constraints.
+
+---
+
+## `@Index`
+
+**Definition:** JPA's `@Index` defines a database index for specified columns.
+
+### Exact Practical Snapshot
+
+```java
+@Entity
+@Table(
+    name = "orders",
+    indexes = {
+        @Index(
+            name = "idx_orders_user_status",
+            columnList = "user_id, status"
+        )
+    }
+)
+public class Order {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "user_id")
+    private Long userId;
+
+    private String status;
+
+    // getters and setters
+}
+```
+
+This represents:
+
+```sql
+CREATE INDEX idx_orders_user_status
+ON orders(user_id, status);
+```
+
+---
+
+## Composite Index
+
+**Definition:** A composite index contains multiple columns in a defined order.
+
+```text
+(user_id, status)
+```
+
+Column order matters.
+
+---
+
+## Leftmost-Prefix Rule
+
+For:
+
+```text
+(user_id, status)
+```
+
+Generally:
+
+```text
+user_id              → ✅
+user_id + status     → ✅
+status alone         → generally ❌
+```
+
+The index is organized according to its column order.
+
+### Important Interview Wording
+
+> Column order matters because composite indexes are organized according to their column order, and the leftmost-prefix rule determines which query patterns can efficiently use the index.
+
+---
+
+## Choosing Column Order
+
+Choose the order based on:
+
+* Query patterns
+* Filtering
+* Joins
+* Sorting
+* Selectivity
+* Workload
+
+Example:
+
+```sql
+WHERE user_id = 101
+AND status = 'PAID'
+```
+
+A practical index:
+
+```text
+(user_id, status)
+```
+
+---
+
+## JPA Index vs Database Migration
+
+JPA:
+
+```java
+@Index(
+    name = "idx_orders_user_status",
+    columnList = "user_id, status"
+)
+```
+
+Production database migration:
+
+```sql
+CREATE INDEX idx_orders_user_status
+ON orders(user_id, status);
+```
+
+For production, important schema changes are generally better managed through version-controlled migrations such as Flyway/Liquibase.
+
+---
+
+## Don't Blindly Create Many Indexes
+
+```text
+More indexes
+     ↓
+Potentially faster reads
+     ↓
+BUT
+     ↓
+More storage
+More maintenance
+More write overhead
+```
+
+Choose indexes based on actual query patterns and verify with `EXPLAIN`.
+
+---
+
+# 9. Spring Boot DB Configuration / HikariCP
+
+## Datasource Configuration
+
+**Definition:** Datasource configuration tells Spring Boot how to connect to the database.
+
+### Exact Practical Snapshot
+
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/order_db
+spring.datasource.username=root
+spring.datasource.password=password
+
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.connection-timeout=30000
+```
+
+---
+
+## MySQL JDBC URL
+
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/order_db
+```
+
+Conceptually:
+
+```text
+jdbc:mysql://
+localhost:
+3306/
+order_db
+```
+
+```text
+JDBC
+ ↓
+MySQL
+ ↓
+localhost:3306
+ ↓
+order_db
+```
+
+---
+
+## Username / Password
+
+```properties
+spring.datasource.username=root
+spring.datasource.password=password
+```
+
+Used by the application to authenticate with MySQL.
+
+---
+
+## HikariCP Configuration
+
+```properties
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.connection-timeout=30000
+```
+
+### Recall
+
+```text
+maximum-pool-size
+→ Maximum pool connections
+
+minimum-idle
+→ Minimum idle connection target
+
+connection-timeout
+→ Maximum wait to obtain a pool connection
+```
+
+---
+
+## Connection Acquisition Timeout vs Query Timeout
+
+Important distinction:
+
+```text
+Connection timeout
+        ↓
+Waiting for HikariCP connection
+
+
+Query timeout
+        ↓
+Waiting for SQL/query execution
+```
+
+They solve different problems.
+
+---
+
+## Pool Size Per Application Instance
+
+Example:
+
+```text
+3 application instances
+×
+20 connections
+=
+60 potential DB connections
+```
+
+```text
+Instance 1 → 20
+Instance 2 → 20
+Instance 3 → 20
+              ↓
+           MySQL
+```
+
+---
+
+## Connection Pool Pressure Scenario
+
+```text
+maximum-pool-size = 20
+active connections = 20
+pending requests = 100
+```
+
+Don't immediately increase the pool.
+
+Investigate:
+
+```text
+Slow queries?
+Long transactions?
+High concurrency?
+Connection leaks?
+DB capacity?
+```
+
+---
+
+## Why Not Blindly Increase Pool Size?
+
+```text
+Bigger pool
+    ↓
+More concurrent DB work
+    ↓
+More CPU / I/O / locks
+    ↓
+Database may become bottleneck
+```
+
+### Production Rule
+
+> First investigate why connections are busy. Increase the pool only when evidence shows the pool is genuinely undersized and the database can handle the additional concurrency.
+
+---
+
+# 10. Application Config vs Database Migration
+
+## What Belongs in `application.properties`?
+
+**Definition:** Application configuration controls how the application connects to and interacts with the database at runtime.
+
+Examples:
+
+```properties
+spring.datasource.url=...
+spring.datasource.username=...
+spring.datasource.password=...
+
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.connection-timeout=30000
+```
+
+Think:
+
+```text
+Application configuration
+        ↓
+"How does my application connect/use the DB?"
+```
+
+---
+
+## Datasource Configuration
+
+Belongs in application configuration:
+
+* JDBC URL
+* Username
+* Password
+* Datasource settings
+* Connection pool configuration
+
+---
+
+## HikariCP Runtime Configuration
+
+Examples:
+
+```text
+maximum-pool-size
+minimum-idle
+connection-timeout
+```
+
+These control application-side connection-pool behavior.
+
+---
+
+# What Belongs in Database Migrations?
+
+**Definition:** Database migrations are version-controlled changes that modify the database schema.
+
+Examples:
+
+* Tables
+* Columns
+* Indexes
+* Constraints
+* Schema changes
+
+Example:
+
+```sql
+CREATE INDEX idx_orders_user_status
+ON orders(user_id, status);
+```
+
+---
+
+## Tables
+
+Example migration:
+
+```sql
+CREATE TABLE orders (
+    id BIGINT PRIMARY KEY,
+    user_id BIGINT,
+    status VARCHAR(50)
+);
+```
+
+---
+
+## Columns
+
+Schema changes such as:
+
+```sql
+ALTER TABLE orders
+ADD COLUMN payment_id BIGINT;
+```
+
+belong in a database migration.
+
+---
+
+## Indexes
+
+Example:
+
+```sql
+CREATE INDEX idx_orders_user_status
+ON orders(user_id, status);
+```
+
+---
+
+## Constraints
+
+Examples:
+
+* Primary key
+* Foreign key
+* Unique constraint
+* Check constraint
+
+These are database schema concerns and should be version-controlled.
+
+---
+
+# Flyway / Liquibase
+
+**Definition:** Flyway and Liquibase are database migration tools used to version and apply database schema changes.
+
+Example Flyway-style history:
+
+```text
+V1__create_orders_table.sql
+V2__add_user_status_index.sql
+V3__add_payment_reference.sql
+```
+
+Flow:
+
+```text
+Application
+     ↓
+Flyway / Liquibase
+     ↓
+Run required migrations
+     ↓
+MySQL schema updated
+     ↓
+Application starts
+```
+
+---
+
+# Why Controlled Migrations in Production?
+
+**Definition:** Versioned migrations provide a controlled and repeatable history of database schema changes.
+
+Benefits:
+
+* Version control
+* Repeatability
+* Team coordination
+* Controlled deployments
+* Clear schema history
+
+---
+
+# `ddl-auto=update` vs Versioned Migrations
+
+Example:
+
+```properties
+spring.jpa.hibernate.ddl-auto=update
+```
+
+Hibernate can automatically attempt schema changes based on entities.
+
+Useful for local development, but production systems generally prefer controlled migrations.
+
+### Recall
+
+```text
+Local development
+→ ddl-auto can be convenient
+
+
+Production
+→ Versioned migrations
+   (Flyway / Liquibase)
+```
+
+### Interview Answer
+
+> I use application configuration for database connectivity and runtime settings such as the datasource and connection pool. For production schema changes such as tables, indexes, and constraints, I prefer version-controlled migrations such as Flyway or Liquibase instead of relying on Hibernate's automatic schema updates.
+
+---
+
+# 🔥 Final Quick Recall — This Entire Section
+
+```text
+DATABASE BOTTLENECK
+    ↓
+Slow query / Missing index / N+1 / Traffic / Pool pressure
+    ↓
+Identify bottleneck
+    ↓
+EXPLAIN / metrics / monitoring
+    ↓
+Optimize
+```
+
+```text
+READ-HEAVY
+    ↓
+Optimized queries + indexes
+    ↓
+Read replicas
+```
+
+```text
+WRITE-HEAVY / HUGE DATASET
+    ↓
+Optimize / batch / async where suitable
+    ↓
+Sharding when necessary
+```
+
+```text
+REQUIRED
+    ↓
+Join existing transaction
+    ↓
+No existing → create one
+```
+
+```text
+REQUIRES_NEW
+    ↓
+Suspend A
+    ↓
+Start B
+    ↓
+Commit/Rollback B
+    ↓
+Resume A
+```
+
+```text
+OPTIMISTIC
+    ↓
+@Version
+    ↓
+Detect conflict during update
+    ↓
+Exception
+```
+
+```text
+PESSIMISTIC
+    ↓
+PESSIMISTIC_WRITE
+    ↓
+🔒 Lock row
+    ↓
+Other conflicting transaction waits
+    ↓
+Commit
+    ↓
+🔓 Release
+```
+
+```text
+JPA INDEX
+    ↓
+@Table + @Index
+    ↓
+Composite index
+    ↓
+Column order matters
+    ↓
+Leftmost-prefix rule
+```
+
+```text
+SPRING BOOT
+    ↓
+HikariCP
+    ↓
+JDBC
+    ↓
+MySQL
+```
+
+```text
+APPLICATION CONFIG
+    ↓
+DB URL / credentials / HikariCP
+
+
+DATABASE MIGRATION
+    ↓
+Tables / columns / indexes / constraints
+    ↓
+Flyway / Liquibase
+```
+
+## ⭐ Must-Remember Practical Snapshots
+
+### `@Version`
+
+```java
+@Version
+private Long version;
+```
+
+### Pessimistic Lock
+
+```java
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+Optional<Order> findById(Long id);
+```
+
+### JPA Composite Index
+
+```java
+@Entity
+@Table(
+    name = "orders",
+    indexes = {
+        @Index(
+            name = "idx_orders_user_status",
+            columnList = "user_id, status"
+        )
+    }
+)
+public class Order {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "user_id")
+    private Long userId;
+
+    private String status;
+
+    // getters and setters
+}
+```
+
+### HikariCP
+
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/order_db
+spring.datasource.username=root
+spring.datasource.password=password
+
+spring.datasource.hikari.maximum-pool-size=20
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.connection-timeout=30000
+```
+
+### Practical Pessimistic Scenario
+
+```text
+A → @Transactional
+  → PESSIMISTIC_WRITE
+  → 🔒 Lock row
+  → Update
+  → COMMIT
+  → 🔓 Release
+
+B → tries same row
+  → ⏳ Waits
+  → gets lock
+  → reads latest state
+```
+
+### Practical Optimistic Scenario
+
+```text
+A + B read version 5
+        ↓
+A updates → version 6
+        ↓
+B updates using version 5
+        ↓
+0 rows updated
+        ↓
+Optimistic locking exception
+        ↓
+Reject / Refresh + retry / Propagate
+```
+
+### `REQUIRES_NEW` Scenario
+
+```text
+Transaction A
+     ↓
+createOrder()
+     ↓
+saveAudit() → REQUIRES_NEW
+     ↓
+SUSPEND A
+     ↓
+Transaction B
+     ↓
+saveAudit()
+     ↓
+COMMIT B
+     ↓
+RESUME A
+     ↓
+COMMIT / ROLLBACK A
+```
+
+---
+
+# 🎯 Interview Mental Model
+
+```text
+First:
+Find the actual DB bottleneck
+        ↓
+Slow query?
+Index?
+N+1?
+Read traffic?
+Write traffic?
+Connection pool?
+        ↓
+Optimize the actual problem
+        ↓
+Read-heavy → consider replicas
+        ↓
+Huge data/workload → consider sharding
+        ↓
+Concurrency → optimistic / pessimistic locking
+        ↓
+Spring transactions → REQUIRED / REQUIRES_NEW
+        ↓
+Production schema → migrations
+```
