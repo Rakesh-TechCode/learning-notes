@@ -1671,44 +1671,616 @@ return value
 
 ---
 
-# 📍 Current Progress
+# HashMap — Mutable Keys → Hash Table
+
+## 1. Mutable Keys
+
+A **mutable key** is an object whose fields can change after it is inserted into a `HashMap`.
+
+Example:
+
+```java
+Employee e = new Employee(101, "Rakesh");
+
+Map<Employee, String> map = new HashMap<>();
+map.put(e, "Developer");
+
+e.setName("Amit");
+```
+
+If `name` is used in `equals()` / `hashCode()`, changing it can break lookup.
+
+### Why?
+
+When inserted:
 
 ```text
-Java Collections
-│
-├── Collection Framework              ✅
-│
-├── List                              ✅
-│   ├── List basics                   ✅
-│   ├── ArrayList                     ✅
-│   ├── LinkedList                    ✅
-│   ├── Vector                        ✅
-│   └── Stack                         ✅
-│
-├── Set                               ✅
-│   ├── Set basics                    ✅
-│   ├── HashSet                       ✅
-│   ├── HashSet internals             ✅
-│   ├── equals/hashCode               ✅
-│   ├── LinkedHashSet                 ✅
-│   └── TreeSet                       ✅
-│
-└── Map
-    ├── Map basics                    ✅
-    ├── HashMap basics                ✅
-    └── HashMap internals             🔥
-        ├── hashCode()                ✅
-        ├── Hashing                   ✅
-        ├── Bucket                    ✅
-        ├── hash → bucket             ✅
-        ├── put()                     ✅
-        ├── get()                     ✅
-        ├── Collision                 ✅
-        ├── equals()                  ✅
-        ├── Treeification             ✅
-        ├── Resize concept            ✅
-        │
-        ├── Mutable Keys              ⬅️ NEXT
-        ├── Resize/Rehashing deeper
-        └── Final HashMap explanation
+Employee(101, Rakesh)
+        ↓
+   hashCode()
+        ↓
+    Bucket 5
 ```
+
+After mutation:
+
+```text
+Employee(101, Amit)
+        ↓
+   new hashCode()
+        ↓
+    Bucket 10
+```
+
+But the existing entry **still physically remains in Bucket 5**.
+
+`HashMap` stores a **reference to the key object**, not a copied version of its fields.
+
+Therefore:
+
+```java
+map.get(e);
+```
+
+may return:
+
+```text
+null
+```
+
+The value was **not deleted**.
+
+The problem is that lookup searches the bucket calculated from the key's **current state**, while the entry is still in the old bucket.
+
+### Rule
+
+> Never change fields used by `equals()` / `hashCode()` while the object is being used as a `HashMap` key.
+
+Immutable objects such as `String` are safer keys.
+
+---
+
+## 2. Mutable Key — Deeper Cases
+
+### Mutating and calling `put()` again
+
+```java
+Employee e = new Employee(101, "Rakesh");
+
+map.put(e, "Developer");
+
+e.setName("Amit");
+
+map.put(e, "Tester");
+```
+
+The second `put()` searches using the **new hash/bucket**.
+
+It may not find the old entry, because the old entry is still in the original bucket.
+
+Therefore, a second entry can be created:
+
+```text
+Old bucket → e → Developer
+New bucket → e → Tester
+```
+
+The same `Employee` object can therefore be referenced by multiple entries.
+
+### Mutated `e1` + unchanged `e2`
+
+```java
+Employee e1 = new Employee(101, "Rakesh");
+Employee e2 = new Employee(101, "Rakesh");
+
+map.put(e1, "Developer");
+
+e1.setName("Amit");
+
+map.put(e2, "Tester");
+```
+
+`e2` still has:
+
+```text
+101, Rakesh
+```
+
+while `e1` now has:
+
+```text
+101, Amit
+```
+
+Even if both reach the same bucket, `equals()` compares their **current states**.
+
+```text
+same bucket
+     ↓
+equals()
+     ↓
+false
+     ↓
+both entries remain
+```
+
+### Important
+
+> **Same bucket ≠ same key.**
+
+A collision only means multiple keys are in the same bucket.
+
+---
+
+## 3. `equals()` / `hashCode()` Contract
+
+### The main rule
+
+```text
+equals() == true
+       ↓
+hashCode() MUST be same
+```
+
+But:
+
+```text
+same hashCode()
+       ↓
+does NOT mean
+equals() == true
+```
+
+This can simply be a **hash collision**.
+
+### Example
+
+```text
+Employee(101, "Rakesh")
+Employee(101, "Amit")
+```
+
+If `equals()` compares both `id` and `name`:
+
+```text
+equals() → false
+```
+
+Their hash codes can still be the same.
+
+That's a collision, not a duplicate key.
+
+### Why HashMap needs both
+
+```text
+hashCode()
+    ↓
+"Which bucket should I check?"
+
+equals()
+    ↓
+"Is this the exact key?"
+```
+
+### Interview line
+
+> HashMap uses `hashCode()` to locate the appropriate bucket and `equals()` to identify the exact key within that bucket.
+
+---
+
+## 4. Broken `equals()` / `hashCode()`
+
+**Incorrect:**
+
+```java
+@Override
+public boolean equals(Object obj) {
+    Employee other = (Employee) obj;
+    return this.id == other.id;
+}
+
+@Override
+public int hashCode() {
+    return Objects.hash(id, name);
+}
+```
+
+Here:
+
+```text
+equals()   → id
+hashCode() → id + name
+```
+
+This violates the contract.
+
+Two objects can be equal:
+
+```text
+id = 101
+```
+
+but have different names and therefore potentially different hash codes.
+
+### Important consequence
+
+With such a broken implementation, the `HashMap` result is **not guaranteed**.
+
+Depending on bucket placement:
+
+```text
+size = 1
+```
+
+or:
+
+```text
+size = 2
+```
+
+### Correct rule
+
+The fields used to determine equality should be consistent with the fields used to generate the hash code.
+
+If equality uses only `id`:
+
+```java
+@Override
+public int hashCode() {
+    return Objects.hash(id);
+}
+```
+
+---
+
+## 5. HashMap vs LinkedHashMap
+
+| Feature | HashMap | LinkedHashMap |
+|---|---|---|
+| Key-value pairs | ✅ | ✅ |
+| Duplicate keys | ❌ | ❌ |
+| Duplicate values | ✅ | ✅ |
+| Guaranteed order | ❌ | ✅ Insertion order |
+| Average lookup | O(1) | O(1) |
+
+Example:
+
+```java
+Map<Integer, String> map = new LinkedHashMap<>();
+
+map.put(3, "C");
+map.put(1, "A");
+map.put(2, "B");
+```
+
+Output:
+
+```text
+{3=C, 1=A, 2=B}
+```
+
+### Updating an existing key
+
+```java
+map.put(1, "X");
+```
+
+Result:
+
+```text
+{3=C, 1=X, 2=B}
+```
+
+The value changes, but **key `1` stays in its original position** in the default insertion-order mode.
+
+> LinkedHashMap maintains insertion order; it does not sort the keys.
+
+---
+
+## 6. LinkedHashMap — Basic Internal Idea
+
+Conceptually:
+
+```text
+              LinkedHashMap
+                    |
+          +---------+---------+
+          ↓                   ↓
+    Hash-table structure   Linked structure
+          ↓                   ↓
+    Fast lookup           Maintains order
+```
+
+It combines:
+
+```text
+Hashing
+   +
+Linked ordering
+```
+
+The linked structure connects entries in insertion order.
+
+### Important clarification
+
+```text
+Hash table ≠ Hashtable
+```
+
+`LinkedHashMap` **does NOT use Java's `Hashtable` class internally**.
+
+It uses a HashMap-style hash-table structure plus linked ordering.
+
+---
+
+## 7. LinkedHashMap Operations
+
+### `put()`
+
+```java
+map.put(1, "A");
+```
+
+Adds a new key-value pair.
+
+If the key already exists:
+
+```java
+map.put(1, "X");
+```
+
+the value is replaced.
+
+---
+
+### `get()`
+
+```java
+map.get(1);
+```
+
+Returns the value associated with the key.
+
+---
+
+### `remove()`
+
+```java
+map.remove(1);
+```
+
+Removes the key-value entry.
+
+---
+
+### `size()`
+
+```java
+map.size();
+```
+
+Returns the number of key-value mappings.
+
+### Example
+
+```java
+Map<Integer, String> map = new LinkedHashMap<>();
+
+map.put(10, "A");
+map.put(20, "B");
+map.put(30, "C");
+
+map.put(20, "X");
+map.remove(10);
+map.put(40, "D");
+```
+
+Final:
+
+```text
+{20=X, 30=C, 40=D}
+```
+
+```text
+size()   → 3
+get(20)  → X
+```
+
+---
+
+## 8. Hashtable
+
+`Hashtable` is a **legacy synchronized Map implementation**.
+
+```java
+Map<String, String> map = new Hashtable<>();
+```
+
+Valid because:
+
+```text
+Hashtable implements Map
+```
+
+### Characteristics
+
+```text
+Unique keys          → Yes
+Duplicate values     → Yes
+null key             → No
+null values          → No
+Synchronized         → Yes
+Modern choice        → Usually no
+```
+
+### HashMap vs Hashtable
+
+| Feature | HashMap | Hashtable |
+|---|---|---|
+| Map | ✅ | ✅ |
+| Duplicate keys | ❌ | ❌ |
+| Duplicate values | ✅ | ✅ |
+| `null` key | ✅ One | ❌ |
+| `null` values | ✅ | ❌ |
+| Synchronized | ❌ | ✅ |
+| Modern usage | Common | Legacy |
+
+For modern concurrent applications, `ConcurrentHashMap` is generally preferred over `Hashtable`.
+
+---
+
+## 9. Hash Table — Data Structure Concept
+
+A **hash table** is a general data-structure concept used for fast key-based storage and lookup.
+
+Basic idea:
+
+```text
+Key
+ ↓
+Hash function / hash information
+ ↓
+Bucket index
+ ↓
+Bucket
+ ↓
+Entry
+```
+
+Example:
+
+```text
+Bucket Array
+
+0 → [ ]
+1 → [101 : Rakesh]
+2 → [102 : Amit]
+3 → [103 : Rahul]
+4 → [ ]
+```
+
+### Hash Table vs Hashtable
+
+This distinction is important:
+
+```text
+Hash table
+    ↓
+General data-structure concept
+
+Hashtable
+    ↓
+Specific legacy Java class
+```
+
+Don't treat them as the same thing.
+
+---
+
+## 10. Bucket vs Bucket Array
+
+### Bucket
+
+One position/location in the table.
+
+```text
+Bucket 0
+Bucket 1  ← one bucket
+Bucket 2
+Bucket 3
+```
+
+### Bucket Array
+
+The complete array containing those bucket positions.
+
+```text
+Bucket Array
+
++---------+---------+---------+---------+
+| Bucket0 | Bucket1 | Bucket2 | Bucket3 |
++---------+---------+---------+---------+
+```
+
+So:
+
+> **Bucket = one position.**  
+> **Bucket array/table = collection of bucket positions.**
+
+### HashMap conceptual structure
+
+```text
+HashMap
+   ↓
+Bucket/Table Array
+   ↓
+Bucket
+   ↓
+Entry/Node
+```
+
+Multiple entries can exist in one bucket because of collisions:
+
+```text
+Bucket 3
+
+Entry A
+   ↓
+Entry C
+   ↓
+Entry F
+```
+
+---
+
+# 🧠 Final Mental Model
+
+```text
+HashMap
+   ↓
+Bucket/Table Array
+   ↓
+hashCode()
+   ↓
+calculate bucket
+   ↓
+┌─────────────────────┐
+│ Bucket               │
+│                     │
+│ Entry → Entry → ... │  ← collision
+└─────────────────────┘
+   ↓
+equals()
+   ↓
+exact key
+```
+
+And remember this terminology:
+
+```text
+Hash table  → Data-structure concept
+Hashtable   → Legacy Java class
+HashMap     → Java Map using hash-table-based structure
+LinkedHashMap
+            → HashMap-style hashing
+              + linked ordering
+HashSet     → Uses HashMap internally (conceptually)
+```
+
+### 🎯 3-YOE interview lines
+
+**Mutable key:**
+
+> Avoid mutating fields used in `equals()` and `hashCode()` while an object is used as a HashMap key.
+
+**Hash table:**
+
+> A hash table is a data structure that uses hashing to map keys to bucket positions for fast average-case lookup.
+
+**Bucket:**
+
+> A bucket is a position in the hash table where one or more entries can be stored.
+
+**Hashtable:**
+
+> `Hashtable` is a legacy synchronized Map implementation and is different from the general hash-table data structure.
