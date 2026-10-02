@@ -804,26 +804,7 @@ The final test has been prepared, but we haven't marked this section complete un
 
 ---
 
-# 📌 Overall Progress
 
-```text
-Testing Basics
-✅ COMPLETE
-
-JUnit 5
-✅ COMPLETE
-
-Mockito Core Concepts
-✅ COMPLETE
-
-Mockito — Exceptions & Verification
-✅ COMPLETE
-
-Mockito — Argument Matchers
-⏳ FINAL HANDS-ON PENDING
-```
-
----
 
 # 🧠 30-Second Recall
 
@@ -848,4 +829,483 @@ never()      → was it NOT called?
 
 anyInt()     → any integer
 eq(101)      → exact value
+```
+
+
+# Mockito — Quick Recall Notes — Continuation
+
+## Mockito — Argument Matchers ✅
+
+> **What are Argument Matchers?** They tell Mockito what kind of argument should match during stubbing or verification.
+
+### `any()`
+
+> **What is it?** Matches any value of the required type.
+
+```java
+when(orderRepository.findOrderById(anyInt()))
+        .thenReturn("Order");
+```
+
+```text
+anyInt() → any integer
+```
+
+---
+
+### `eq()`
+
+> **What is it?** Matches one exact value.
+
+```java
+when(orderRepository.findOrderById(eq(101)))
+        .thenReturn("Order-101");
+```
+
+```text
+eq(101) → exactly 101
+```
+
+#### `anyInt()` vs `eq()`
+
+```text
+anyInt() → any integer
+eq(101)  → only 101
+```
+
+---
+
+### Why Argument Matchers Are Needed
+
+> **What are they useful for?** They allow flexible matching when we don't care about the exact value of every argument.
+
+```text
+eq(101)      → exact ID
+anyString()  → any name
+anyDouble()  → any amount
+```
+
+Example:
+
+```java
+when(orderRepository.saveOrder(
+        eq(101),
+        anyString(),
+        anyDouble()
+)).thenReturn("Order-101");
+```
+
+---
+
+### Combining Matchers Correctly
+
+> **What is the rule?** If you use matchers for a method call, use matchers for all arguments in that call.
+
+**Correct:**
+
+```java
+verify(orderRepository).saveOrder(
+        eq(101),
+        eq("Rakesh"),
+        anyDouble()
+);
+```
+
+**Avoid mixing matcher + raw value:**
+
+```java
+verify(orderRepository).saveOrder(
+        eq(101),
+        "Rakesh",
+        anyDouble()
+);
+```
+
+**Recall rule:**
+
+```text
+One matcher in a call
+        ↓
+Use matchers for all arguments
+```
+
+---
+
+### `anyString()`
+
+> **What is it?** Matches any `String`.
+
+```java
+anyString()
+```
+
+---
+
+### `anyDouble()`
+
+> **What is it?** Matches any `double`.
+
+```java
+anyDouble()
+```
+
+---
+
+### Service → Repository Hands-on
+
+> **What is it?** Applying matchers when a service passes multiple arguments to a repository.
+
+Example:
+
+```java
+orderService.createOrder(
+        101,
+        "Rakesh",
+        2500.0
+);
+```
+
+Repository:
+
+```java
+saveOrder(
+        eq(101),
+        anyString(),
+        anyDouble()
+);
+```
+
+---
+
+### Verify Calls With Specific Arguments
+
+> **What is it?** Checks that the dependency was called with the exact values we expect.
+
+```java
+verify(orderRepository).saveOrder(
+        eq(101),
+        eq("Rakesh"),
+        eq(2500.0)
+);
+```
+
+### 🎯 Status
+
+**✅ Argument Matchers section covered**
+
+---
+
+## 7. Mockito — `ArgumentCaptor` ✅
+
+> **What is `ArgumentCaptor`?** It captures the actual argument passed to a mocked dependency so we can inspect and assert it.
+
+### Why use it?
+
+```text
+verify()
+→ Was the method called?
+
+ArgumentCaptor
+→ What exact value was passed?
+```
+
+### Example
+
+```java
+ArgumentCaptor<Integer> orderIdCaptor =
+        ArgumentCaptor.forClass(Integer.class);
+
+verify(orderRepository).saveOrder(
+        orderIdCaptor.capture(),
+        nameCaptor.capture(),
+        amountCaptor.capture()
+);
+```
+
+Then retrieve the values:
+
+```java
+assertEquals(101, orderIdCaptor.getValue());
+assertEquals("Rakesh", nameCaptor.getValue());
+assertEquals(2500.0, amountCaptor.getValue());
+```
+
+### Mental model
+
+```text
+OrderService
+     ↓
+saveOrder(101, "Rakesh", 2500.0)
+     ↓
+ArgumentCaptor
+     ↓
+captures actual arguments
+```
+
+---
+
+### Capturing Repository/Dependency Arguments
+
+> **What is it?** Verifying not only that the dependency was called, but also what the service actually sent to it.
+
+```java
+verify(orderRepository).saveOrder(
+        orderIdCaptor.capture(),
+        nameCaptor.capture(),
+        amountCaptor.capture()
+);
+```
+
+---
+
+## 8. Mockito — `doReturn()` ✅
+
+> **What is `doReturn()`?** An alternative way to stub a mock method with a controlled return value.
+
+**Standard:**
+
+```java
+when(orderRepository.findOrderById(101))
+        .thenReturn("Order-101");
+```
+
+**Alternative:**
+
+```java
+doReturn("Order-101")
+        .when(orderRepository)
+        .findOrderById(101);
+```
+
+### Recall
+
+```text
+when().thenReturn()
+→ standard stubbing
+
+doReturn().when()
+→ alternative stubbing
+```
+
+`doReturn()` is particularly useful in situations such as working with spies where calling the real method during stubbing can be undesirable.
+
+---
+
+## 9. Mockito — `doThrow()` ✅
+
+> **What is `doThrow()`?** Makes a mocked method throw an exception when called.
+
+```java
+doThrow(new RuntimeException("Order not found"))
+        .when(orderRepository)
+        .findOrderById(999);
+```
+
+### Recall
+
+```text
+thenThrow()
+→ when().thenThrow()
+
+doThrow()
+→ doThrow().when()
+```
+
+`doThrow()` becomes especially useful for **void methods**.
+
+---
+
+## 10. Mockito — Mocking `void` Methods ✅
+
+> **What is a void method?** A method that performs an action but returns no value.
+
+Example:
+
+```java
+void updateOrderStatus(int orderId, String status);
+```
+
+Because there is no return value, we don't use:
+
+```java
+when(...).thenReturn(...)
+```
+
+Instead, Mockito provides the `do...` style.
+
+### `doNothing()`
+
+```java
+doNothing()
+        .when(orderRepository)
+        .updateOrderStatus(101, "SHIPPED");
+```
+
+> Means: when this void method is called, do nothing.
+
+**Note:** For a normal Mockito mock, `doNothing()` is generally the default behavior for void methods. It is mainly useful to understand the `do...` syntax and for explicit stubbing.
+
+### Verify the call
+
+```java
+verify(orderRepository)
+        .updateOrderStatus(101, "SHIPPED");
+```
+
+---
+
+## 11. Mockito — Void Method Exception Testing ✅
+
+> **What is it?** Testing what happens when a void dependency method throws an exception.
+
+For void methods:
+
+```java
+doThrow(new RuntimeException("Database update failed"))
+        .when(orderRepository)
+        .updateOrderStatus(101, "SHIPPED");
+```
+
+Then verify the exception:
+
+```java
+assertThrows(
+        RuntimeException.class,
+        () -> orderService.updateOrderStatus(101, "SHIPPED")
+);
+```
+
+### Flow
+
+```text
+OrderService
+     ↓
+updateOrderStatus()
+     ↓
+Mock Repository
+     ↓
+RuntimeException
+     ↓
+assertThrows()
+```
+
+---
+
+## 12. Mockito — Combined Service → Repository Practice ⏳
+
+> **What is it?** A final exercise that combines the Mockito concepts instead of testing each concept separately.
+
+Planned scenarios:
+
+```text
+1. Create Order
+   → doReturn()
+   → ArgumentCaptor
+   → verify()
+
+2. Find Order
+   → doReturn()
+   → assertEquals()
+
+3. Repository failure
+   → doThrow()
+   → assertThrows()
+   → verify()
+
+4. Update Order Status
+   → void method
+   → verify()
+
+5. Void method failure
+   → doThrow()
+   → assertThrows()
+```
+
+### Status
+
+**⏳ Combined exercise completion confirmation pending**
+
+The individual concepts above are already covered.
+
+---
+
+# Mockito — Quick Recall
+
+```text
+anyInt()
+→ any integer
+
+eq(101)
+→ exact value
+```
+
+```text
+when()
+→ defines mock behavior
+```
+
+```text
+doReturn()
+→ alternative return stubbing
+```
+
+```text
+thenThrow()
+→ throw exception with when()
+```
+
+```text
+doThrow()
+→ throw exception using do... style
+→ especially useful for void methods
+```
+
+```text
+verify()
+→ was method called?
+```
+
+```text
+times()
+→ how many times?
+```
+
+```text
+never()
+→ was it not called?
+```
+
+```text
+ArgumentCaptor
+→ what exact arguments were passed?
+```
+
+```text
+doNothing()
+→ explicitly do nothing for a void method
+```
+
+# 📌 Mockito — Current Progress
+
+```text
+Argument Matchers
+✅ Complete
+
+ArgumentCaptor
+✅ Complete
+
+Capturing dependency arguments
+✅ Complete
+
+doReturn()
+✅ Complete
+
+doThrow()
+✅ Complete
+
+Mocking void methods
+✅ Complete
+
+Void + exception testing
+✅ Complete
 ```
