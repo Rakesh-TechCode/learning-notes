@@ -731,7 +731,10 @@ verify(orderRepository).saveOrder(
         anyDouble()
 );
 ```
-
+```text
+once you use a matcher like eq() or anyDouble(), all arguments in that method call must use matchers.
+Mockito does not allow mixing argument matchers with raw values in the same method call. I should use eq("Rakesh") for the second argument.
+```
 **Recall rule:**
 
 ```text
