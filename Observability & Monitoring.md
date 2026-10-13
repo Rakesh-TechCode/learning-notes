@@ -56,7 +56,11 @@ Logs    → What happened?
 Metrics → How much/how fast?
 Traces  → Where/which service?
 ```
-
+| Pillar | Example question | Tool |
+|---|---|---|
+| **Logs** | Why did Payment Service return an error? | ELK |
+| **Metrics** | Why did the Payment Service error rate suddenly increase? | Prometheus + Grafana |
+| **Traces** | Why did this particular order request take 4 seconds? | OpenTelemetry + Jaeger/Tempo |
 ---
 
 ### 4. Monitoring vs Observability
