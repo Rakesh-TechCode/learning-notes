@@ -540,3 +540,320 @@ During construction, an overridden instance method can be dispatched to the subc
 - [ ] Method overriding
 - [ ] Quick comparison questions
 - [ ] Final interview recall practice
+
+
+# Java Core — Topic 2 Quick Recall
+
+# Abstract Class vs Interface
+
+*Interview revision · Core rules · Tricky variations · Code examples*
+
+## 1. Abstract Class
+
+An abstract class is a base class that can provide shared state and implementation while leaving some methods for subclasses to implement.
+
+```java
+abstract class Payment {
+    protected double amount;
+
+    Payment(double amount) {
+        this.amount = amount;
+    }
+
+    void printAmount() {
+        System.out.println(amount);
+    }
+
+    abstract void pay();
+}
+```
+
+**Remember:**
+
+- Cannot instantiate an abstract class directly.
+- Can have constructors, instance fields, static fields/methods, and concrete methods.
+- Can have `final` concrete methods, but they cannot be overridden.
+- An abstract method cannot be `private`, `static`, or `final`.
+- Its constructor executes when a concrete subclass object is created.
+
+## 2. Interface
+
+An interface defines a contract or capability that implementing classes agree to provide.
+
+```java
+interface PaymentMethod {
+    int MAX_RETRIES = 3;  // public static final
+    void pay();           // public abstract
+
+    default void printStatus() {
+        System.out.println("Payment initiated");
+    }
+
+    static void showRules() {
+        System.out.println("Payment rules");
+    }
+
+    private void log() {  // Java 9+
+        System.out.println("Internal helper");
+    }
+}
+```
+
+**Remember:**
+
+- No constructor or per-object instance fields.
+- Fields are implicitly `public static final`.
+- Ordinary abstract methods are implicitly `public abstract`.
+- `default` methods provide overridable instance behavior.
+- `static` methods belong to the interface.
+- `private` helper methods are allowed since Java 9.
+- A class can implement multiple interfaces but extend only one class.
+- An interface can extend multiple interfaces, but cannot extend a class.
+
+## 3. Key Differences
+
+| Abstract Class | Interface |
+|---|---|
+| Can hold instance state | No per-object instance fields |
+| Can have constructors | Cannot have constructors |
+| Can provide concrete and abstract methods | Supports abstract, `default`, `static`, and private helper methods |
+| A class extends one class | A class can implement multiple interfaces |
+| Useful for shared base behavior | Useful for contracts and capabilities |
+
+**Interview answer:** An abstract class provides a common base with shared state and implementation; an interface defines a contract that different classes can implement.
+
+<div style="border: 2px solid #D97706; border-radius: 10px; padding: 16px; margin: 16px 0;">
+
+## 4. Abstract Class — Tricky Interview Box
+
+### Must-Know Variations
+
+- Can an abstract class have a static variable or method? **Yes.**
+- Can it have a `final` concrete method? **Yes.**
+- Can a method be both `abstract` and `final`? **No.**
+- Can a subclass override a final method? **No.** It can inherit and call it.
+- Can an abstract class have a constructor? **Yes.** It runs as part of subclass construction.
+
+```java
+abstract class Payment {
+    static int count = 0;
+
+    final void process() {
+        System.out.println("Processing");
+    }
+
+    abstract void pay();
+}
+
+class UpiPayment extends Payment {
+    @Override
+    void pay() {
+        System.out.println("UPI");
+    }
+
+    // void process() {} // Compilation error
+}
+```
+
+**One-line answer:** An abstract class can have constructors, fields, static members, concrete and abstract methods, and final concrete methods; incompatible combinations such as an abstract `final` method are prohibited.
+
+</div>
+
+<div style="border: 2px solid #2563EB; border-radius: 10px; padding: 16px; margin: 16px 0;">
+
+## 5. Interface — Tricky Interview Box
+
+### Must-Know Variations
+
+- Can an interface have variables? **Yes**, implicitly `public static final`.
+- Can it have a constructor? **No.**
+- Can it have `static` methods? **Yes**, called using the interface name.
+- Can it have concrete instance methods? **Yes**, using `default`.
+- Can it have private or private static methods? **Yes**, since Java 9.
+- Can an interface method be `final`? **No.**
+- Can an implementing class change an interface constant? **No.**
+- Can an interface extend multiple interfaces? **Yes.**
+- Can an abstract class implement an interface without implementing every method? **Yes**, if it remains abstract.
+- Must an implementation of an interface's abstract method be `public`? **Yes.**
+- Can a class override an interface's static method? **No.** It is called using the interface name.
+- Is `default` an access modifier? **No.** It marks an interface instance method with a default implementation.
+
+**One-line answer:** An interface defines a contract and supports constants, abstract methods, default methods, static methods, and private helper methods, but has no constructor or per-object instance fields.
+
+</div>
+
+## 6. Special Scenario — Abstract Class vs Interface
+
+### When Should You Choose Each?
+
+**Abstract class:** Related classes need shared state, constructor initialization, or common implementation.
+
+```java
+abstract class Payment {
+    protected double amount;
+
+    Payment(double amount) {
+        this.amount = amount;
+    }
+
+    void printAmount() {
+        System.out.println(amount);
+    }
+
+    abstract void pay();
+}
+```
+
+**Interface:** Different classes need to share a capability, even if they have different parent classes.
+
+```java
+interface Refundable {
+    void refund();
+}
+
+class CardPayment implements Refundable {
+    public void refund() {
+        System.out.println("Card refunded");
+    }
+}
+```
+
+**Interview answer:** An abstract class provides a common base with shared state and implementation; an interface defines a contract that different classes can implement.
+
+## 7. Special Scenario — Conflicting `default` Methods
+
+**What happens when two interfaces provide a `default` method with the same signature?**
+
+```java
+interface A {
+    default void show() {
+        System.out.println("A");
+    }
+}
+
+interface B {
+    default void show() {
+        System.out.println("B");
+    }
+}
+
+class Demo implements A, B {
+    // Compilation error until show() is resolved
+}
+```
+
+**Why?** Java cannot decide which implementation to use.
+
+**Fix:**
+
+```java
+class Demo implements A, B {
+    @Override
+    public void show() {
+        A.super.show();
+    }
+}
+```
+
+You can instead choose `B.super.show()` or provide your own implementation.
+
+**Interview answer:** When two interfaces provide conflicting default methods with the same signature, the implementing class must override the method to resolve the conflict.
+
+<div style="border: 2px solid #16A34A; border-radius: 10px; padding: 16px; margin: 16px 0;">
+
+## 8. Special Scenario — Postponing Interface Implementation
+
+### Compilation Trap: Missing `refund()`
+
+```java
+interface PaymentMethod {
+    void pay();
+    void refund();
+}
+
+class CardPayment implements PaymentMethod {
+    public void pay() {
+        System.out.println("Paying by card");
+    }
+
+    // refund() is missing
+}
+```
+
+**Why does compilation fail?**
+
+`CardPayment` is concrete, but `refund()` remains unimplemented.
+
+**Two fixes:**
+
+1. Implement `refund()` in `CardPayment`.
+2. Declare `CardPayment` as `abstract`.
+
+**Memory trick:** Abstract class = implementation can be postponed. Concrete class = implementation must be completed.
+
+The same rule applies when an abstract class implements an interface:
+
+```java
+interface PaymentMethod {
+    void pay();
+    void refund();
+}
+
+abstract class Payment implements PaymentMethod {
+    public void pay() {
+        System.out.println("Payment initiated");
+    }
+
+    // refund() is postponed
+}
+
+class CardPayment extends Payment {
+    public void refund() {
+        System.out.println("Refund completed");
+    }
+}
+```
+
+`Payment` postpones `refund()`, while concrete `CardPayment` completes it.
+
+</div>
+
+## 9. Constructor Execution — Quick Recall
+
+An abstract class constructor does not create an abstract-class object independently. It initializes the superclass portion of a subclass object.
+
+```java
+abstract class Payment {
+    Payment() {
+        System.out.println("A");
+    }
+}
+
+class UpiPayment extends Payment {
+    UpiPayment() {
+        System.out.println("B");
+    }
+}
+
+class FastUpiPayment extends UpiPayment {
+    FastUpiPayment() {
+        System.out.println("C");
+    }
+}
+
+// new FastUpiPayment(); prints A, B, C
+```
+
+**Memory trick:** Parent → Child → Grandchild.
+
+## 10. Final Rapid-Recall Checklist
+
+Before an interview, make sure you can answer these without looking:
+
+- [ ] Why can an abstract class have a constructor but an interface cannot?
+- [ ] Why can't an abstract method be `final`?
+- [ ] Why must interface methods be implemented as `public`?
+- [ ] Why does a concrete class fail to compile if an abstract method is missing?
+- [ ] How do you resolve conflicting interface `default` methods?
+- [ ] When would you choose an abstract class over an interface?
+- [ ] Can a class extend multiple classes or implement multiple interfaces?
