@@ -1129,3 +1129,140 @@ Check that the index exists, its document count increases, and actual documents 
 **Phase 3 status:** ELK fundamentals, Spring Boot integration, local hands-on, searches and 10 troubleshooting scenarios are complete. Production ELK architecture and deployment remain in progress and are intentionally not covered in these notes.
 
 </div>
+
+
+# Production ELK — Quick Recall Notes
+
+*Java Backend · 3 YOE Interview Revision*
+
+## 1. Production ELK Architecture
+
+**Flow:**
+
+`Spring Boot → Filebeat / Elastic Agent → Logstash (optional) → Elasticsearch → Kibana`
+
+- **Spring Boot + Logback:** Generates application logs.
+- **Filebeat / Elastic Agent:** Collects and forwards logs from hosts or containers.
+- **Logstash:** Parses, filters, transforms, enriches, and routes logs when needed.
+- **Elasticsearch:** Indexes and stores logs for searching.
+- **Kibana:** Searches and visualizes logs.
+
+**Remember:** Logback is part of the Spring Boot logging setup, not Logstash.
+
+## 2. Log Files vs Container stdout/stderr
+
+- **VM deployments:** Applications commonly write logs to files; collectors read those files.
+- **Docker/Kubernetes:** Applications commonly write to `stdout`/`stderr`; the runtime or a configured collector captures the logs.
+- Container logs still need a collection and forwarding pipeline.
+
+## 3. When Is Logstash Optional?
+
+- Use direct shipping when the collector supports the destination and no complex processing is required.
+- Use Logstash for complex parsing, filtering, transformation, enrichment, or routing.
+
+<div style="border: 2px solid #D97706; border-radius: 10px; padding: 16px; margin: 16px 0;">
+
+## 4. Elasticsearch Basics
+
+- **Cluster:** Group of Elasticsearch nodes.
+- **Node:** An Elasticsearch instance.
+- **Index:** Logical collection of documents.
+- **Primary shard:** Holds a partition of index data.
+- **Replica shard:** Copy of a primary shard; helps availability and search capacity.
+
+**Cluster health:**
+
+- **Green:** All primary and replica shards allocated.
+- **Yellow:** All primaries allocated; one or more replicas unassigned.
+- **Red:** At least one primary shard is unassigned.
+
+A single-node cluster can be yellow because replicas cannot be allocated on the same node as their primaries.
+
+</div>
+
+<div style="border: 2px solid #2563EB; border-radius: 10px; padding: 16px; margin: 16px 0;">
+
+## 5. Production Security
+
+- **Authentication:** Who are you?
+- **Authorization:** What are you allowed to do?
+- **TLS:** Encrypts data in transit and can verify server identity.
+- **Secrets management:** Keeps passwords and API keys out of source code and Git.
+
+Use least privilege. Never log credentials or tokens.
+
+**Local vs production:** `xpack.security.enabled=false` may be acceptable for isolated practice, but is not a safe production configuration.
+
+</div>
+
+## 6. Reliability and Delivery
+
+- **Persistent storage:** Protects Elasticsearch data across container replacement, provided the volume remains intact.
+- **Retries and buffering:** Help handle temporary destination failures.
+- **Persistent collector state:** Helps resume collection after restarts.
+- **Source-log retention:** Gives collectors time to catch up.
+
+These reduce log-loss risk but do not guarantee zero loss or exactly-once delivery.
+
+**Replicas ≠ backups:**
+
+- Replicas help with availability.
+- Snapshots support data recovery.
+
+## 7. Retention, ILM, and Disk Usage
+
+- **Retention:** How long logs are kept.
+- **ILM (Index Lifecycle Management):** Automates configured actions such as rollover, tier movement, and deletion.
+- Disk usage grows due to high log volume, long retention, shards, and replicas.
+
+Investigate large indices and excessive log generation before changing storage or deleting data.
+
+<div style="border: 2px solid #16A34A; border-radius: 10px; padding: 16px; margin: 16px 0;">
+
+## 8. Monitoring and Scaling
+
+**Monitor:**
+
+- Service availability
+- Log ingestion rate
+- Parsing/indexing errors
+- CPU, memory, and disk
+- Queue backlog and indexing delay
+
+**Scaling rule:** Find the bottleneck first, then optimize or scale the relevant component.
+
+</div>
+
+## 9. Common Production Troubleshooting
+
+**Logs missing from Kibana? Check in order:**
+
+1. Is Spring Boot generating logs?
+2. Is the collector reading and forwarding them?
+3. Is Logstash working, if used?
+4. Is Elasticsearch indexing the events?
+5. Are Kibana's data view, time range, and filters correct?
+
+**Disk usage too high?** Check index sizes, log volume, retention, shards, and replicas.
+
+**Elasticsearch unavailable?** Check retries, buffering, persistent state, and source-log availability.
+
+**Sensitive data logged?** Stop logging it, restrict access, and rotate exposed credentials when necessary.
+
+**Many services and high log volume?** Identify the bottleneck before scaling.
+
+## 10. Deployment Differences
+
+- **VMs:** Often file-based collection.
+- **Docker:** Commonly stdout/stderr plus runtime or collector-based shipping.
+- **Kubernetes:** Commonly stdout/stderr plus a node-level or platform-level collector.
+
+These are common patterns, not strict rules.
+
+## 11. Interview-Ready Answer
+
+“In production, Spring Boot services generate structured logs, which Filebeat or Elastic Agent can collect and forward. Logstash is optional and is useful when logs need additional processing. Elasticsearch indexes the logs, and Kibana supports searching and troubleshooting. I would monitor ingestion, indexing errors, disk usage, and pipeline health; configure appropriate security and retention; and use replicas for availability and snapshots for recovery.”
+
+## Final Memory Line
+
+**Generate → Collect → Process (optional) → Index → Search → Monitor → Retain securely.**
