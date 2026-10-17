@@ -857,3 +857,258 @@ Before an interview, make sure you can answer these without looking:
 - [ ] How do you resolve conflicting interface `default` methods?
 - [ ] When would you choose an abstract class over an interface?
 - [ ] Can a class extend multiple classes or implement multiple interfaces?
+
+
+# Java Core — Topic 3: Constructors & Object Initialization
+
+## 1. Constructor vs Normal Method
+
+- Constructor name must match the class name.
+- Constructor has **no return type**, not even `void`.
+- A normal method can have a return type.
+- Java provides a default no-argument constructor only when no constructor is declared.
+
+```java
+class Payment {
+    Payment() {}       // Constructor
+    void Payment() {}  // Normal method
+}
+```
+
+## 2. Types of Constructors
+
+- **No-argument constructor:** Takes zero parameters.
+- **Parameterized constructor:** Takes parameters.
+- **Default constructor:** Compiler-generated no-argument constructor when no constructor is declared.
+- If any constructor is declared, Java does not automatically generate a no-argument constructor.
+
+```java
+class Payment {
+    Payment(String method) {}
+    // new Payment() causes a compilation error
+}
+```
+
+## 3. Constructor Overloading
+
+- Same class, multiple constructors with different parameter lists.
+- Parameter names alone cannot distinguish constructors.
+- Constructors cannot have return types.
+
+```java
+class Payment {
+    Payment() {}
+    Payment(String method) {}
+    Payment(int amount) {}
+}
+```
+
+## 4. Constructor Chaining
+
+- `this()` → invokes another constructor in the same class.
+- `super()` → invokes a superclass constructor.
+- Constructor calls must be the first statement.
+- You cannot use both `this()` and `super()` as separate calls in the same constructor.
+- If neither is explicitly called, Java inserts `super()` when applicable.
+
+**One-line answer:** `super()` invokes a superclass constructor, initializing the parent portion before the subclass constructor body executes.
+
+## 5. Parent and Subclass Constructors — Important Examples
+
+### Case 1: Creating a parent object
+
+```java
+class Payment {
+    Payment(String method) {
+        System.out.println(method);
+    }
+
+    void processPayment() {
+        System.out.println("Payment processed");
+    }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        Payment p = new Payment("UPI");
+        p.processPayment();
+    }
+}
+```
+
+Output:
+
+```text
+UPI
+Payment processed
+```
+
+`new Payment("UPI")` works because the required argument is supplied.
+
+`Payment p = new Payment();` fails because no no-argument constructor exists.
+
+### Case 2: Creating a subclass object
+
+```java
+class Payment {
+    Payment(String method) {
+        System.out.println(method);
+    }
+
+    void processPayment() {
+        System.out.println("Payment processed");
+    }
+}
+
+class UpiPayment extends Payment {
+    UpiPayment() {
+        super("UPI");
+    }
+}
+```
+
+Then:
+
+```java
+UpiPayment upi = new UpiPayment();
+upi.processPayment();
+```
+
+Output:
+
+```text
+UPI
+Payment processed
+```
+
+**Tricky variation:** If `super("UPI")` is removed, compilation fails because Java attempts to insert `super()`, but `Payment` has no no-argument constructor.
+
+The method `processPayment()` does not affect constructor rules. The object must be constructed successfully before its method can be called.
+
+## 6. Private Constructor
+
+- Directly callable only from within the declaring class.
+- Commonly used in utility classes and Singleton implementations.
+- A static factory method can create an object without an existing instance.
+
+```java
+class PaymentUtil {
+    private PaymentUtil() {
+        System.out.println("Object created");
+    }
+
+    static PaymentUtil create() {
+        return new PaymentUtil(); // Allowed inside same class
+    }
+}
+
+// PaymentUtil p = new PaymentUtil(); // Compilation error
+PaymentUtil p = PaymentUtil.create(); // Allowed
+```
+
+**Remember:** `private` controls access; `static` allows a method to be called without an existing object.
+
+## 7. Constructor Access Modifiers
+
+| Modifier | Access |
+|---|---|
+| `public` | Anywhere |
+| `protected` | Same package and qualifying subclass access |
+| Package-private | Same package |
+| `private` | Within the declaring class |
+
+**Tricky variation:** A `public` class can have a `protected` constructor. An unrelated class in another package cannot directly invoke that constructor.
+
+## 8. Constructors and Inheritance
+
+**Tricky interview variations**
+
+- Are constructors inherited? **No.**
+- Can a child invoke a parent constructor? **Yes, using `super(...)`.**
+- Are constructors overridden? **No.**
+- Can a child declare a constructor with the same parameter list as its parent? **Yes.** It is a separate constructor, not overriding.
+- Does a child automatically receive the parent's parameterized constructors? **No.**
+
+**Memory trick:** Constructors are not inherited, not overridden, and not polymorphic. A child constructor can call a parent constructor using `super(...)`.
+
+## 9. Constructors and Abstract Classes
+
+- An abstract class cannot be instantiated directly.
+- It can have constructors.
+- Its constructor executes when a concrete subclass object is created.
+
+**One-line answer:** An abstract class can have a constructor because it initializes the superclass portion of a concrete subclass object.
+
+## 10. Constructors and Interfaces
+
+- An interface cannot declare constructors.
+- An implementing class can declare constructors.
+- `Payment p = new UpiPayment()` invokes the `UpiPayment` constructor.
+
+**One-line answer:** Interfaces cannot have constructors because they cannot be instantiated; the implementing class's constructor initializes its objects.
+
+## 11. Object Creation and Initialization Order
+
+For a subclass object:
+
+1. Memory is allocated; instance fields initially receive default values.
+2. Superclass initialization and constructor execution occur first.
+3. Subclass instance field initializers and initializer blocks execute.
+4. Subclass constructor body executes.
+
+Static initialization occurs during class initialization, with the superclass initialized before the subclass.
+
+Example:
+
+```java
+class Payment {
+    int amount = 100;
+
+    Payment() {
+        amount = 200;
+    }
+}
+
+class UpiPayment extends Payment {
+    int fee = 10;
+
+    UpiPayment() {
+        System.out.println(amount);
+        System.out.println(fee);
+    }
+}
+```
+
+Output:
+
+```text
+200
+10
+```
+
+## 12. Static and Final Constructor Traps
+
+- `static` constructor → **Not allowed**.
+- `final` constructor → **Not allowed**.
+- Constructors cannot be overridden because they are not inherited.
+- A class itself can be `final` and still have a constructor.
+
+```java
+final class Payment {
+    Payment() {}
+}
+```
+
+## Final Interview Memory Sheet
+
+- `this()` = same-class constructor.
+- `super()` = superclass constructor.
+- Parent constructor executes before child constructor body.
+- Default constructor = compiler-generated only when no constructor is declared.
+- No-argument constructor = any constructor with zero parameters.
+- Constructors can be overloaded, but not overridden.
+- Constructors are not inherited.
+- Private constructors restrict direct construction from outside the declaring class.
+- Abstract classes can have constructors; interfaces cannot.
+- `static` and `final` cannot be applied to constructors.
+
