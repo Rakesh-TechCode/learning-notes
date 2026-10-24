@@ -1112,3 +1112,213 @@ final class Payment {
 - Abstract classes can have constructors; interfaces cannot.
 - `static` and `final` cannot be applied to constructors.
 
+
+# Java Core Topic 4 — Methods, Overloading & Overriding
+
+## 4.1 Method Overloading
+
+**Definition:** Same method name with different parameter lists. The compiler selects the method at compile time.
+
+### Rules
+- Parameters can differ by **number, type, or order**.
+- Changing only the return type is not enough.
+- Overloading is resolved at compile time.
+- Overloading can happen in the same class or through inheritance.
+- `main()` can be overloaded, but the JVM starts with `public static void main(String[] args)`.
+
+### Tricky interview variations
+
+```java
+void pay(int amount) {}
+void pay(double amount) {}
+void pay(int amount, String mode) {}
+```
+
+All three can coexist because their parameter lists differ.
+
+**1. Return type alone**
+
+```java
+int calculate(int a) { return a; }
+// double calculate(int a) { return a; } // Compilation error
+```
+
+Same parameters, different return type → invalid overload.
+
+**2. Exact match vs widening**
+
+```java
+void pay(int a) {}
+void pay(long a) {}
+void pay(double a) {}
+
+pay(100);  // int
+pay(100L); // long
+```
+
+Exact match wins. If only `pay(int)` and `pay(double)` exist, `pay(100L)` selects `pay(double)` because `long` can widen to `double`, but cannot implicitly narrow to `int`.
+
+**3. Overloading with inheritance**
+
+```java
+class Payment {
+    void pay(int amount) {}
+}
+
+class UpiPayment extends Payment {
+    void pay(double amount) {}
+}
+
+Payment p = new UpiPayment();
+p.pay(100); // Payment.pay(int)
+```
+
+The compiler uses the reference type and available overloads to select a signature; runtime dispatch can then choose an overriding implementation of that signature.
+
+**4. Overloaded `main()`**
+
+```java
+public static void main(String[] args) {
+    main(10); // Explicitly calls the overloaded method
+}
+
+static void main(int n) {}
+```
+
+The JVM does not automatically start with `main(int)`.
+
+---
+
+## 4.2 Method Overriding
+
+**Definition:** A subclass provides its own implementation of an inherited instance method with the same signature.
+
+**Interview one-liner:** Overloading means the same method name with different parameter lists and compile-time selection; overriding means redefining an inherited instance method in a subclass, with runtime dispatch based on the actual object.
+
+### Runtime polymorphism
+
+```java
+class Payment {
+    void pay() {
+        System.out.println("General payment");
+    }
+}
+
+class UpiPayment extends Payment {
+    @Override
+    void pay() {
+        System.out.println("UPI payment");
+    }
+}
+
+Payment p = new UpiPayment();
+p.pay(); // UPI payment
+```
+
+Reference type: `Payment`; actual object: `UpiPayment`. The overridden instance method in `UpiPayment` executes.
+
+### Overriding rules
+
+| Rule | Interview answer |
+|---|---|
+| Signature | Same method name and parameter list |
+| Visibility | Cannot reduce access visibility |
+| Return type | Same or a compatible covariant reference type |
+| `final` method | Cannot be overridden |
+| `private` method | Not inherited; same-named child method is not an override |
+| `static` method | Hidden, not overridden |
+| Checked exceptions | Cannot declare a broader or unrelated checked exception than permitted by the parent declaration |
+
+### Important tricky variations
+
+**1. Visibility cannot be reduced**
+
+If the parent method is `protected`, the child cannot override it as `private`. The child may use `protected` or `public`.
+
+**2. Covariant return type**
+
+```java
+class Payment {
+    Payment process() { return this; }
+}
+
+class UpiPayment extends Payment {
+    @Override
+    UpiPayment process() { return this; }
+}
+```
+
+Valid because `UpiPayment` is a subtype of `Payment`.
+
+**3. Checked exceptions — preserve this interview rule**
+
+An overriding method may declare the same checked exception, a narrower checked exception, or no checked exception. It cannot declare a broader or unrelated checked exception.
+
+```java
+class Payment {
+    void process() throws IOException {}
+}
+
+class UpiPayment extends Payment {
+    @Override
+    void process() throws FileNotFoundException {}
+}
+```
+
+Allowed because `FileNotFoundException` is a subclass of `IOException`.
+
+But declaring `throws Exception` in the child would be invalid here because `Exception` is broader than `IOException`.
+
+**4. Static method hiding**
+
+```java
+class Payment {
+    static void process() {
+        System.out.println("Payment");
+    }
+}
+
+class UpiPayment extends Payment {
+    static void process() {
+        System.out.println("UPI");
+    }
+}
+
+Payment p = new UpiPayment();
+p.process(); // Payment
+```
+
+Static method selection depends on the reference/class type, not the actual object. Prefer calling static methods using the class name.
+
+**5. Private methods**
+
+A parent `private` method is not inherited. A same-named child method is a separate method, not an override. Calling the private method through a parent reference from unrelated code causes an access error.
+
+**6. Final methods**
+
+A `final` instance method cannot be overridden. Attempting to override it with the same signature causes a compilation error.
+
+**7. Constructors**
+
+Constructors are neither inherited nor overridden. A child constructor implicitly calls `super()` when no explicit `this(...)` or `super(...)` invocation is supplied and the implicit call is applicable. The parent constructor runs before the child's constructor body.
+
+---
+
+## Final 30-second revision
+
+- **Overloading:** Different parameter lists; compile-time selection.
+- **Overriding:** Same signature; runtime dispatch for instance methods.
+- **Return type alone:** Cannot overload.
+- **Primitive widening:** `long` can widen to `double`, not implicitly narrow to `int`.
+- **Static:** Hiding, not overriding.
+- **Private:** Not inherited, so not overridden.
+- **Final:** Cannot be overridden.
+- **Covariant return:** Child can return a subtype.
+- **Checked exceptions:** Same, narrower, or none; not broader or unrelated.
+- **Constructors:** Not inherited or overridden; parent constructor runs first.
+
+## Progress
+
+- Topic 4.1 — Method Overloading: Completed (quiz 3/5).
+- Topic 4.2 — Method Overriding: Completed (quiz 7/8).
+- Revision priorities: return-type-only overloading, primitive widening, static method hiding, and covariant return types.
