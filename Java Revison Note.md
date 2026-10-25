@@ -1322,3 +1322,67 @@ Constructors are neither inherited nor overridden. A child constructor implicitl
 - Topic 4.1 — Method Overloading: Completed (quiz 3/5).
 - Topic 4.2 — Method Overriding: Completed (quiz 7/8).
 - Revision priorities: return-type-only overloading, primitive widening, static method hiding, and covariant return types.
+
+
+
+# Java Core — Topic 5: `main()` and Program Execution
+
+## 1. Why is `main()` static?
+The traditional launcher can invoke it without creating an object first.
+
+## 2. Why is `main()` public?
+It allows the traditional launcher to access the entry-point method.
+
+## 3. Why is the return type void?
+The traditional entry point doesn't return a value to the launcher.
+
+## 4. What is `String[] args`?
+It receives command-line arguments as strings.
+
+Example: `java PaymentApp order123 500`
+
+- `args[0]` → `"order123"`
+- `args[1]` → `"500"`
+- `args.length` → `2`
+
+With no arguments, the launcher normally supplies an empty array.
+
+## 5. Can `main()` be overloaded?
+**Yes.** The traditional launcher starts with the recognized entry-point signature; it doesn't automatically choose `main(int)`.
+
+## 6. Can `main()` be overridden?
+Static methods are **hidden**, not overridden. A subclass can declare a static method with the same signature.
+
+## 7. What if `main()` isn't static?
+With the traditional launch rules, an instance method such as `public void main(String[] args)` isn't the traditional entry point.
+
+## 8. What if the signature changes?
+A valid method such as `public static void main()` can compile, but the traditional launcher won't recognize it as the expected entry point.
+
+## 9. Can Java execute code without a traditional `main()`?
+Yes. Examples include JShell, test frameworks, and newer Java launch mechanisms. The exact rules depend on the execution mechanism and Java version.
+
+## 10. Modern Java launch mechanisms
+Java 25 supports flexible main methods, including eligible instance main methods, and compact source files. These features aren't available under every older JDK or launch mode.
+
+## 11. What does the launcher look for?
+For a traditional Java application:
+
+`public static void main(String[] args)`
+
+- `public` → accessible
+- `static` → callable without an instance first
+- `void` → no return value
+- `main` → expected method name
+- `String[] args` → command-line arguments
+
+**Technical distinction:** The Java launcher locates and invokes the entry point; the JVM executes the bytecode.
+
+## Interview traps to remember
+
+- Overloading `main()` is allowed.
+- Static methods are hidden, not overridden.
+- Compilation success doesn't guarantee successful launching.
+- A method named `start()` doesn't become the entry point automatically.
+- Distinguish traditional entry-point rules from Java 25's flexible main-method rules.
+
