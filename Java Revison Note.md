@@ -1386,3 +1386,380 @@ For a traditional Java application:
 - A method named `start()` doesn't become the entry point automatically.
 - Distinguish traditional entry-point rules from Java 25's flexible main-method rules.
 
+# Java 8+ Core Features — Quick Recall
+
+Completed topics: Functional Interfaces, Lambdas, Built-in Functional Interfaces, Default/Static Methods, Optional
+
+## 1. Functional Interface
+
+Definition: An interface with exactly one abstract method (SAM — Single Abstract Method).
+
+```java
+@FunctionalInterface
+interface PaymentProcessor {
+    void processPayment();
+
+    default void log() {}
+    static void validate() {}
+}
+```
+
+Remember:
+
+- `@FunctionalInterface` is optional; it tells the compiler to verify the rule.
+- Adding a second abstract method causes a compile-time error when the annotation is present.
+- Multiple `default` and `static` methods are allowed because they have implementations.
+- `Runnable` is a functional interface because it has one abstract method: `void run()`.
+
+### Future-demand note: remember this mental model
+
+> Interface: defines the behavior required.  
+> Lambda: supplies the behavior.  
+> Functional interface: connects the lambda to a method contract.
+
+## 2. Lambda Expressions
+
+A lambda provides the implementation of a functional interface's abstract method with less boilerplate than an anonymous class.
+
+General pattern:
+
+```java
+(parameters) -> { method body }
+```
+
+| Part | Meaning |
+|---|---|
+| `(parameters)` | Inputs the behavior needs |
+| `->` | Separates inputs from behavior |
+| `{ method body }` | Work to perform |
+
+Java allows shorter forms for simple code; parentheses and braces are not always needed.
+
+### How to decide what to write
+
+**Case 1 — No input, no return value**
+
+```java
+Runnable task =
+    () -> System.out.println("Payment processed");
+```
+
+- `()` means no input.
+- Printing is the work.
+- No value is returned.
+
+**Case 2 — One input, returns `true` or `false`**
+
+```java
+Predicate<Integer> expensive =
+    amount -> amount > 1000;
+```
+
+- `amount` is the input.
+- `amount > 1000` is the condition.
+- Result is a `boolean`.
+
+**Case 3 — One input, transforms it into another value**
+
+```java
+Function<Integer, Integer> addFee =
+    amount -> amount + 100;
+```
+
+- `amount` is the input.
+- `amount + 100` calculates the result.
+- An expression body returns its result automatically.
+
+**Case 4 — One input, performs an action without returning a result**
+
+```java
+Consumer<String> logger =
+    orderId -> System.out.println(orderId);
+```
+
+- `orderId` is the input.
+- Printing is the action.
+- Nothing is returned.
+
+### Expression body vs block body
+
+```java
+Function<Integer, Integer> doubleIt =
+    n -> n * 2;
+```
+
+The expression result is returned automatically.
+
+```java
+Function<Integer, Integer> doubleIt =
+    n -> {
+        return n * 2;
+    };
+```
+
+With a block body, use `return` when a value must be returned.
+
+### When should you use a lambda?
+
+Use one when a method expects a functional interface and you need to pass a small piece of behavior.
+
+```java
+amounts.stream()
+       .filter(amount -> amount > 1000)
+       .forEach(System.out::println);
+```
+
+- `filter()` expects a `Predicate`.
+- `forEach()` expects a `Consumer`.
+- A method reference such as `System.out::println` is a shorter way to refer to existing behavior.
+
+For larger, reusable business logic, a named method or separate class may be clearer.
+
+## 3. Built-in Functional Interfaces
+
+The most important thing is to recognize the job each interface performs.
+
+| Interface | Mental model | Main method |
+|---|---|---|
+| `Predicate<T>` | Input → check → boolean | `test()` |
+| `Function<T, R>` | Input → output | `apply()` |
+| `Consumer<T>` | Input → action → nothing returned | `accept()` |
+| `Supplier<T>` | Nothing → output | `get()` |
+| `Runnable` | Nothing → task → nothing returned | `run()` |
+
+### Predicate — check something
+
+```java
+Predicate<Integer> isBig =
+    amount -> amount > 5000;
+```
+
+Input `6000` → `true`; input `3000` → `false`.
+
+### Function — transform something
+
+```java
+Function<Integer, Integer> addFee =
+    amount -> amount + 100;
+```
+
+Input `1000` → output `1100`.
+
+**Future-demand note — do not miss this:**
+
+`Function<InputType, OutputType>`
+
+- First `Integer` → the type of value you provide.
+- Second `Integer` → the type of value you get back.
+
+The two types can differ:
+
+```java
+Function<String, Integer> getLength =
+    text -> text.length();
+```
+
+Input `"Payment"` (`String`) → output `7` (`Integer`).
+
+**Memory trick:** First type goes in; second type comes out.
+
+`Function<T, R>` is not a `Map`. A `Map` stores key-value pairs; a `Function` represents an operation that takes an input and produces an output.
+
+### Consumer — perform an action
+
+```java
+Consumer<String> log =
+    id -> System.out.println(id);
+```
+
+Input `"ORD101"` → prints the ID; returns nothing.
+
+### Supplier — supply a value
+
+```java
+Supplier<String> getStatus =
+    () -> "PENDING";
+
+String status = getStatus.get();
+```
+
+- Takes no input.
+- `.get()` returns `"PENDING"`.
+- It does not print anything unless you explicitly print the result.
+
+### Runnable — perform a task
+
+```java
+Runnable task =
+    () -> System.out.println("Payment processed");
+
+task.run();
+```
+
+- Takes no input and returns nothing.
+- `task.run()` executes like a normal method call on the current thread.
+- `new Thread(task).start()` starts a new thread to execute the task.
+
+**Anonymous class vs lambda:**
+
+```java
+Runnable task = new Runnable() {
+    @Override
+    public void run() {
+        System.out.println("Payment processing");
+    }
+};
+```
+
+The anonymous class implements `Runnable`; `run()` supplies the task's behavior. Defining the task does not start a thread.
+
+**Lambda equivalent:**
+
+```java
+Runnable task =
+    () -> System.out.println("Payment processing");
+
+Thread thread = new Thread(task);
+thread.start();
+```
+
+**Interview one-liner:**
+
+> `Runnable` defines a task through its `run()` method. We can implement it using an anonymous class or lambda, pass it to a `Thread`, and call `start()` to execute it on a new thread.
+
+## 4. Default and Static Methods in Interfaces
+
+Both methods have implementations, so neither counts as an abstract method.
+
+### Default method
+
+Called through an implementing object's reference.
+
+```java
+interface PaymentService {
+    default void printStatus() {
+        System.out.println("Ready");
+    }
+}
+
+class CardPayment implements PaymentService {}
+
+new CardPayment().printStatus();
+```
+
+### Static method
+
+Called using the interface name.
+
+```java
+interface PaymentService {
+    static void validate() {
+        System.out.println("Validating");
+    }
+}
+
+PaymentService.validate();
+```
+
+| Default | Static |
+|---|---|
+| Called through an implementing object | Called through the interface name |
+| Can be inherited by an implementing class | Belongs to the interface itself |
+| Has an implementation | Has an implementation |
+
+**Interview trap:** A functional interface may have one abstract method plus multiple default and static methods.
+
+## 5. Optional
+
+`Optional` represents a value that may or may not be present. It's useful when a method may not find a result.
+
+For example, an Order Service may not find an order for a given ID.
+
+### Creating Optional values
+
+| Method | Meaning |
+|---|---|
+| `Optional.of(value)` | Value must not be `null` |
+| `Optional.ofNullable(value)` | Value may be `null` |
+| `Optional.empty()` | No value is present |
+
+```java
+String status = null;
+
+Optional<String> result =
+    Optional.ofNullable(status);
+```
+
+This creates an empty `Optional` rather than throwing an exception because `status` is `null`.
+
+### Handling a missing value
+
+```java
+Optional<String> order = Optional.empty();
+
+String result = order.orElse("ORDER NOT FOUND");
+```
+
+`result` becomes `"ORDER NOT FOUND"`.
+
+| Method | What it does |
+|---|---|
+| `orElse(value)` | Returns the existing value or the fallback |
+| `orElseGet(supplier)` | Returns the existing value or calls the supplier if empty |
+| `orElseThrow()` | Returns the value or throws `NoSuchElementException` if empty |
+| `orElseThrow(() -> new MyException())` | Throws your specified exception if empty |
+
+**Important difference:**
+
+```java
+order.orElse("DEFAULT");
+```
+
+The fallback expression is evaluated even when the `Optional` contains a value.
+
+```java
+order.orElseGet(() -> "DEFAULT");
+```
+
+The supplier is called only when the `Optional` is empty.
+
+### Where should you use Optional?
+
+- Commonly as a method return type when a result may be absent.
+- It helps callers handle missing values explicitly.
+- It does not guarantee that `NullPointerException` can never occur.
+- Don't use it automatically for every variable, field, or parameter.
+
+**Example interview answer:**
+
+> I use `Optional` as a return type when a method may not find a result. It makes the absence of a value explicit and provides methods such as `orElse`, `orElseGet`, and `orElseThrow` to handle that case.
+
+## Final 60-second revision
+
+**Functional interface**
+
+Exactly one abstract method; multiple default and static methods are allowed.
+
+**Lambda**
+
+Supplies behavior to a functional interface; use `->` between inputs and behavior.
+
+**Five interfaces**
+
+Predicate checks, Function transforms, Consumer acts, Supplier supplies, Runnable runs.
+
+**Default vs static**
+
+Default is called through an object; static is called through the interface name.
+
+**Optional**
+
+Represents a possibly absent value; use `ofNullable()` for a potentially null value.
+
+## Topic 6 completion tracker
+
+- [x] Functional Interface
+- [x] Lambda Expressions
+- [x] Built-in Functional Interfaces
+- [x] Default and Static Methods
+- [x] Optional
