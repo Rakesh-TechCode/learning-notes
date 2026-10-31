@@ -1763,3 +1763,489 @@ Represents a possibly absent value; use `ofNullable()` for a potentially null va
 - [x] Built-in Functional Interfaces
 - [x] Default and Static Methods
 - [x] Optional
+
+
+# Java Core — Topic 7: Exception Handling & Null Handling
+
+## 1. Exception fundamentals
+
+### Throwable hierarchy
+
+```text
+Object
+  └── Throwable
+       ├── Error
+       └── Exception
+            ├── Checked Exceptions
+            └── RuntimeException (Unchecked)
+```
+
+| Type | Meaning | Example |
+|---|---|---|
+| Error | Serious JVM/system-level problem | `OutOfMemoryError` |
+| Checked exception | Compiler requires handling or declaration | `IOException` |
+| Unchecked exception | No mandatory catch or declaration | `NullPointerException` |
+
+**Interview answer:** Exception represents conditions an application may handle; Error generally represents serious problems that applications are not expected to recover from.
+
+## 2. `throw` vs `throws`
+
+| Point | `throw` | `throws` |
+|---|---|---|
+| Purpose | Actually throws an exception | Declares possible exceptions |
+| Location | Inside method body | Method signature |
+| Followed by | Exception object | Exception class names |
+| Quantity | Throws one exception at a time | Can declare multiple exceptions |
+
+**Interview one-liner:**
+
+"`throw` is used to explicitly throw an exception, whereas `throws` is used in a method signature to declare exceptions that the method may pass to its caller."
+
+## 3. Common exception-handling keywords
+
+| Keyword | Purpose |
+|---|---|
+| `try` | Contains code that may throw an exception |
+| `catch` | Handles an exception |
+| `finally` | Executes cleanup code in normal execution paths |
+| `throw` | Explicitly throws an exception |
+| `throws` | Declares exceptions in a method signature |
+
+**Exception propagation:** If a method doesn't handle an exception, it propagates to its caller until handled.
+
+### Common built-in exceptions
+
+| Exception | When it occurs |
+|---|---|
+| `IllegalArgumentException` | Invalid method argument |
+| `IllegalStateException` | Operation attempted in an invalid state |
+| `NullPointerException` | Unexpected null reference usage |
+| `UnsupportedOperationException` | Requested operation isn't supported |
+| `IOException` | Input/output failure |
+
+**Remember:** Don't throw `NullPointerException` just to report invalid input. Prefer validation and a meaningful exception such as `IllegalArgumentException`.
+
+## 4. Custom exceptions in Spring Boot
+
+Custom exceptions represent application-specific or business errors.
+
+**Step 1 — Create custom exception**
+
+```java
+public class PaymentNotFoundException extends RuntimeException {
+    public PaymentNotFoundException(String message) {
+        super(message);
+    }
+}
+```
+
+- `extends RuntimeException` makes it unchecked.
+- `super(message)` passes the message to the parent exception.
+
+**Step 2 — Throw it from service**
+
+```java
+public Payment getPayment(Long paymentId) {
+    return repository.findById(paymentId)
+        .orElseThrow(() ->
+            new PaymentNotFoundException("Payment not found: " + paymentId)
+        );
+}
+```
+
+**Step 3 — Handle it globally**
+
+```java
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(PaymentNotFoundException.class)
+    public ResponseEntity<String> handlePaymentNotFound(
+            PaymentNotFoundException ex) {
+
+        return ResponseEntity
+            .status(HttpStatus.NOT_FOUND)
+            .body(ex.getMessage());
+    }
+}
+```
+
+This returns HTTP 404 Not Found with a meaningful message.
+
+**Interview one-liner:**
+
+"Custom exceptions are user-defined exceptions created to represent application-specific errors. In Spring Boot, I commonly extend `RuntimeException` for business exceptions and handle them centrally using `@RestControllerAdvice` and `@ExceptionHandler`."
+
+### Checked vs unchecked custom exceptions
+
+| Point | Checked | Unchecked |
+|---|---|---|
+| Extends | `Exception` | `RuntimeException` |
+| Can use `throw`? | Yes | Yes |
+| Must catch or declare? | Yes | No |
+| Must use `throws`? | No, if caught | No |
+| Can use try-catch? | Yes | Yes |
+
+## 5. Exception overriding rules
+
+An overriding method cannot throw a broader checked exception than the parent method.
+
+**Example:**
+
+```java
+class Payment {
+    public void process() throws IOException {
+    }
+}
+
+class UpiPayment extends Payment {
+    @Override
+    public void process() throws FileNotFoundException {
+    }
+}
+```
+
+This is valid because `FileNotFoundException` is a subclass of `IOException`.
+
+| Parent method | Child method | Valid? |
+|---|---|---|
+| `throws IOException` | `throws IOException` | Yes |
+| `throws IOException` | `throws FileNotFoundException` | Yes |
+| `throws IOException` | No throws declaration | Yes |
+| `throws IOException` | `throws Exception` | No |
+| No checked exception | `throws IOException` | No |
+| No checked exception | `throws RuntimeException` | Yes |
+
+**Interview one-liner:**
+
+"An overriding method cannot throw broader checked exceptions than the overridden method, but it can throw narrower checked exceptions or unchecked exceptions."
+
+## 6. Tricky `finally` scenarios
+
+### When does finally execute?
+
+| Situation | Finally executes? |
+|---|---|
+| No exception in try | Yes |
+| Exception handled by catch | Yes |
+| Exception not handled | Yes, before propagation |
+| Return inside try | Yes |
+| Return inside catch | Yes |
+
+**When might it not execute?**
+
+- `System.exit(0)` terminates the JVM.
+- JVM crashes.
+- Process is forcibly terminated.
+- Machine shuts down unexpectedly.
+
+**Interview answer:**
+
+"Finally generally executes regardless of whether an exception occurs or is handled. It is mainly used for cleanup operations, but it is not guaranteed during JVM termination or abnormal process shutdown."
+
+### Return inside try and finally
+
+```java
+public int test() {
+    try {
+        return 10;
+    } finally {
+        return 20;
+    }
+}
+```
+
+<escape>**Tricky:**</escape> The result is `20`.
+
+- Finally executes before the pending return.
+- If finally itself returns, it overrides the return from try or catch.
+- Returning from finally is discouraged because it can suppress exceptions and override results.
+
+### Exceptions thrown by try and finally
+
+| Situation | What propagates? |
+|---|---|
+| Only try throws | Try exception |
+| Only finally throws | Finally exception |
+| Both throw | Finally exception takes precedence |
+| Try throws, finally completes normally | Try exception |
+
+If both try and finally throw, the finally exception takes precedence. The try exception does not automatically become a suppressed exception.
+
+**Important distinction:** Try-with-resources handles closing exceptions differently. Closing exceptions are recorded as suppressed exceptions on the primary exception and can be accessed using `getSuppressed()`.
+
+## 7. NullPointerException (NPE)
+
+### Why does NPE happen?
+
+NPE occurs when we try to access a field, method, or perform an operation through a null reference.
+
+```java
+Payment payment = null;
+payment.getAmount(); // NullPointerException
+```
+
+### Three ways to prevent NPE
+
+**1. Null validation**
+
+```java
+if (payment == null) {
+    throw new IllegalArgumentException("Payment cannot be null");
+}
+System.out.println(payment.getAmount());
+```
+
+**2. `Objects.requireNonNull()`**
+
+```java
+Objects.requireNonNull(payment, "Payment cannot be null");
+System.out.println(payment.getAmount());
+```
+
+Throws NPE with the supplied message if the reference is null.
+
+**3. Optional**
+
+```java
+Optional<Payment> payment = repository.findById(paymentId);
+payment.ifPresent(p -> System.out.println(p.getAmount()));
+```
+
+Optional is useful for potentially absent return values. It is not a replacement for every null check.
+
+### Null-safe design
+
+Null-safe design means preventing unexpected null values from spreading through the application.
+
+**Principles:**
+
+- Validate required inputs.
+- Avoid returning null unnecessarily.
+- Return empty collections when there are no results.
+- Use Optional when a return value may be absent.
+
+**Interview-ready answer:**
+
+"Null-safe design means preventing unexpected null values from spreading through the application. I validate required inputs, avoid returning null unnecessarily, use empty collections where appropriate, and use Optional when a return value may be absent."
+
+### Why is catching NPE everywhere bad?
+
+- Hides the actual problem.
+- Makes debugging difficult.
+- Can hide programming mistakes.
+- Creates poor error-handling practices.
+
+> **Remember:**
+>
+> - Validate required data.
+> - Use Optional when absence is expected.
+> - Return empty collections instead of null.
+> - Catch NPE only when you have a specific recovery strategy.
+
+## 8. Optional — important interview methods
+
+Optional is a container that may or may not contain a value. It helps handle missing return values explicitly instead of returning null.
+
+### `Optional.of()`, `ofNullable()` and `empty()`
+
+#### 1. `Optional.of(value)`
+
+Use when you are sure the value is not null.
+
+```java
+Payment payment = new Payment();
+
+Optional<Payment> result = Optional.of(payment);
+```
+
+**Value is present**
+
+If `payment` is `null`, it throws a `NullPointerException`.
+
+#### 2. `Optional.ofNullable(value)`
+
+Use when the value might be null.
+
+```java
+Payment payment = null;
+
+Optional<Payment> result = Optional.ofNullable(payment);
+```
+
+**No exception**
+
+If `payment` is `null`, it returns `Optional.empty()`.
+
+#### 3. `Optional.empty()`
+
+Use when you want to explicitly return an Optional with no value.
+
+```java
+public Optional<Payment> getPayment() {
+    return Optional.empty();
+}
+```
+
+This tells the caller that no payment is available.
+
+### Quick comparison
+
+| Method | When to use | If value is null |
+|---|---|---|
+| `of()` | Value is guaranteed non-null | Throws NPE |
+| `ofNullable()` | Value might be null | Returns empty |
+| `empty()` | No value is available | Creates empty Optional |
+
+**Interview memory trick:**
+
+- `of()` → Definitely have a value.
+- `ofNullable()` → Maybe have a value.
+- `empty()` → Definitely have no value.
+
+### `orElse()` vs `orElseGet()`
+
+| Method | Fallback execution |
+|---|---|
+| `orElse()` | Always evaluated |
+| `orElseGet()` | Evaluated only when Optional is empty |
+
+```java
+Payment payment = result.orElse(new Payment());
+```
+
+```java
+Payment payment = result.orElseGet(() -> new Payment());
+```
+
+**Interview one-liner:**
+
+"`orElse()` evaluates the fallback eagerly, whereas `orElseGet()` evaluates it lazily using a Supplier only when the Optional is empty."
+
+### `orElseThrow()`
+
+Returns the value if present; otherwise throws the specified exception.
+
+```java
+Payment payment = repository.findById(paymentId)
+    .orElseThrow(() ->
+        new PaymentNotFoundException("Payment not found")
+    );
+```
+
+### `isPresent()` vs `ifPresent()`
+
+| Method | Purpose | Return |
+|---|---|---|
+| `isPresent()` | Checks whether value exists | `boolean` |
+| `ifPresent()` | Executes action if value exists | `void` |
+
+```java
+if (result.isPresent()) {
+    System.out.println("Payment found");
+}
+```
+
+```java
+result.ifPresent(payment ->
+    System.out.println(payment.getAmount())
+);
+```
+
+If Optional is empty, `ifPresent()` does nothing.
+
+### `map()` — transform a value
+
+```java
+Optional<Payment> result = paymentRepository.findById(101L);
+Optional<Double> amount = result.map(Payment::getAmount);
+```
+
+If empty, the result remains `Optional.empty()`.
+
+### `filter()` — retain a value if condition matches
+
+```java
+Optional<Payment> result = Optional.of(payment);
+
+Optional<Payment> filtered =
+    result.filter(p -> p.getAmount() > 1000);
+```
+
+If the condition fails, returns `Optional.empty()`.
+
+### Chaining `filter()` and `map()`
+
+```java
+Optional<Payment> result = Optional.of(payment);
+
+Optional<Double> amount = result
+    .filter(p -> p.getAmount() > 1000)
+    .map(Payment::getAmount);
+```
+
+If amount is `1500.0`, result is `Optional[1500.0]`.
+
+If the filter condition fails, result is `Optional.empty()`.
+
+### `get()` vs `orElseThrow()`
+
+| Method | If Optional is empty |
+|---|---|
+| `get()` | Throws `NoSuchElementException` |
+| `orElseThrow()` | Throws the specified exception |
+
+Prefer `orElseThrow()` over unsafe `get()` when handling missing database records.
+
+## 9. How do you handle NPE in your Spring Boot project?
+
+**Interview-ready answer**
+
+"In my Spring Boot project, I prevent NullPointerException by validating required request objects before accessing their fields. If any required data is missing, I throw a meaningful custom exception. I handle these exceptions centrally using `@RestControllerAdvice` and `@ExceptionHandler`. For database records that may not exist, I use Optional with `orElseThrow()` instead of returning null."
+
+### Practical request validation example
+
+```java
+public class PaymentRequest {
+
+    @NotNull(message = "Customer is required")
+    @Valid
+    private Customer customer;
+
+    @NotNull(message = "Amount is required")
+    private BigDecimal amount;
+}
+```
+
+**Controller:**
+
+```java
+@PostMapping("/payments")
+public ResponseEntity<?> createPayment(
+        @Valid @RequestBody PaymentRequest request) {
+
+    return ResponseEntity.ok(paymentService.process(request));
+}
+```
+
+- `@Valid` triggers request validation.
+- `@NotNull` checks that the customer object itself is not null.
+- `@Valid` on the nested customer enables validation of its fields too.
+
+## Final Topic 7 status
+
+**Completed**
+
+| Section | Status |
+|---|---|
+| Exception fundamentals | Completed |
+| `throw` vs `throws` | Completed |
+| try/catch/finally | Completed |
+| Exception propagation | Completed |
+| Custom exceptions | Completed |
+| Tricky finally scenarios | Completed |
+| Exception overriding rules | Completed |
+| NPE prevention | Completed |
+| Null-safe design | Completed |
+| Optional | Completed |
+| Spring Boot NPE interview scenario | Completed |
