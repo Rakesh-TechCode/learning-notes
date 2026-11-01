@@ -125,12 +125,18 @@ s.toUpperCase();
 
 ## 11. `intern()`
 
-1. `intern()` returns the **canonical String from the String Pool**.
-2. If the same content already exists in the pool, its reference is returned.
-3. Example: `String s3 = s2.intern();`.
-4. `intern()` does not change `s2` unless you reassign it.
-5. After `s2 = s2.intern()`, `s2` refers to the pooled String.
+What it is: intern() gives you the pooled reference for a String's content.
 
+String s1 = new String("Java");
+
+String s2 = s1.intern();
+
+String s3 = "Java";
+
+s2 == s3;    // true
+- If the same content already exists in the String Pool, its pooled reference is returned.
+- Otherwise, the String is added to the pool.
+- Useful when you specifically need the pooled reference.
 ---
 
 ## 12. Compile-Time String Concatenation
