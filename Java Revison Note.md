@@ -2249,3 +2249,431 @@ public ResponseEntity<?> createPayment(
 | Null-safe design | Completed |
 | Optional | Completed |
 | Spring Boot NPE interview scenario | Completed |
+
+
+# Java Core — Topic 8: String, Immutability & Wrapper Classes
+
+<badge color="success">Completed</badge>
+
+## 1. String Immutability
+
+**Q: What does String immutability mean?**
+
+**A:** Once a String object is created, its content cannot be changed.
+
+```java
+String a = "Java";
+String b = a;
+
+a = a.concat(" Developer");
+
+System.out.println(a); // Java Developer
+System.out.println(b); // Java
+```
+
+- `concat()` creates a new String.
+- Original String remains unchanged.
+- Reference variable can point to another String.
+
+**Why is String immutable?**
+
+1. Security — prevents unexpected modification.
+2. Thread safety — immutable objects can safely be shared.
+3. String Pool — allows String objects to be reused.
+4. HashMap — stable hash code when String is used as a key.
+
+**Interview takeaway:** String is immutable, but its reference variable can be reassigned.
+
+## 2. String Pool
+
+**Q: What is the String Pool?**
+
+**A:** A special area in the JVM heap where Java reuses String literals to avoid creating duplicate objects unnecessarily.
+
+```java
+String a = "Java";
+String b = "Java";
+
+System.out.println(a == b); // true
+```
+
+Both references point to the same pooled object.
+
+**What happens with `new String()`?**
+
+```java
+String a = "Java";
+String b = new String("Java");
+
+System.out.println(a == b);      // false
+System.out.println(a.equals(b)); // true
+```
+
+`new String()` creates a separate String object.
+
+**Q: What does `intern()` do?**
+
+**A:** Returns the canonical pooled reference for the same String content.
+
+```java
+String a = "Java";
+String b = new String("Java");
+
+String c = b.intern();
+
+System.out.println(a == c); // true
+```
+
+**Interview one-liner:** `intern()` returns the canonical representation of a String from the String Pool, allowing identical String contents to share the same pooled reference.
+
+## 3. `==` vs `equals()`
+
+| Operator/method | Meaning |
+|---|---|
+| `==` | Compares object references |
+| `equals()` | Compares String content |
+
+```java
+String a = new String("Java");
+String b = new String("Java");
+
+System.out.println(a == b);      // false
+System.out.println(a.equals(b)); // true
+```
+
+**Interview answer:** "`==` compares object references, whereas `equals()` compares the actual content of String objects."
+
+## 4. String Concatenation
+
+Java supports concatenation using `+` and `concat()`.
+
+```java
+String name = "Java";
+
+name.concat(" Developer");
+System.out.println(name); // Java
+```
+
+Why? The returned String wasn't assigned.
+
+```java
+name = name.concat(" Developer");
+// Java Developer
+```
+
+**Using `+`:**
+
+```java
+name = "Java";
+name = name + " Developer";
+
+System.out.println(name); // Java Developer
+```
+
+**Using `+=`:**
+
+```java
+String a = "Java";
+String b = " Developer";
+
+a += b;
+
+System.out.println(a); // Java Developer
+System.out.println(b); //  Developer
+```
+
+**Important:** `+=` performs concatenation and reassignment together.
+
+## 5. StringBuilder
+
+**Q: What is StringBuilder?**
+
+**A:** A mutable class used to modify String content without creating a new object for every modification.
+
+```java
+StringBuilder sb = new StringBuilder("Java");
+
+sb.append(" Developer");
+sb.append(" Interview");
+
+System.out.println(sb); // Java Developer Interview
+```
+
+**Common methods**
+
+| Method | Purpose |
+|---|---|
+| `append()` | Adds content at the end |
+| `insert()` | Inserts content at a specified position |
+| `replace()` | Replaces characters |
+| `delete()` | Removes characters |
+| `reverse()` | Reverses the entire content |
+| `toString()` | Converts to String |
+
+**Example:**
+
+```java
+StringBuilder sb = new StringBuilder("Java");
+
+sb.insert(0, "Spring ");
+System.out.println(sb); // Spring Java
+```
+
+**Important interview points:**
+
+- `append()` modifies the existing object.
+- `append()` returns the same StringBuilder object.
+- `==` can return true when comparing the original reference with the returned reference.
+
+```java
+StringBuilder sb = new StringBuilder("Java");
+
+StringBuilder result = sb.append(" Developer");
+
+System.out.println(sb == result); // true
+```
+
+## 6. StringBuffer
+
+**Q: What is StringBuffer?**
+
+**A:** A mutable class like StringBuilder, but its methods are synchronized.
+
+```java
+StringBuffer sb = new StringBuffer("Payment");
+
+sb.append(" Successful");
+
+System.out.println(sb); // Payment Successful
+```
+
+**Interview answer:** StringBuffer is synchronized and provides thread-safe individual method operations.
+
+**Important nuance:** Multiple method calls are not automatically atomic as one combined operation.
+
+## 7. String vs StringBuilder vs StringBuffer
+
+<badge color="info">Future-demand interview note</badge>
+
+| Feature | String | StringBuilder | StringBuffer |
+|---|---|---|---|
+| Mutability | Immutable | Mutable | Mutable |
+| Thread safety | Safe to share due to immutability | Not synchronized | Synchronized |
+| Modification | Creates new String | Modifies same object | Modifies same object |
+| Performance for repeated changes | Generally slower | Generally faster | Generally slower than StringBuilder |
+| Best use | Fixed text | Frequent modifications | Synchronized individual modifications |
+
+**When should you use each?**
+
+- String → When text doesn't need frequent modification.
+- StringBuilder → Frequent modifications, especially in a single thread.
+- StringBuffer → When synchronized individual modifications are specifically required.
+
+**Important interview trap**
+
+Don't say String is thread-safe because it is synchronized. String isn't synchronized.
+
+String is safe to share because it is immutable: its contents cannot be changed after creation.
+
+## 8. Wrapper Classes
+
+**Q: What are Wrapper Classes?**
+
+**A:** Wrapper classes represent primitive data types as objects.
+
+| Primitive | Wrapper |
+|---|---|
+| `int` | `Integer` |
+| `long` | `Long` |
+| `double` | `Double` |
+| `boolean` | `Boolean` |
+| `char` | `Character` |
+| `float` | `Float` |
+| `byte` | `Byte` |
+| `short` | `Short` |
+
+**Example:**
+
+```java
+int amount = 100;
+Integer paymentAmount = 100;
+```
+
+**Why do we need wrapper classes?**
+
+Java collections work with objects, not primitive types directly.
+
+```java
+List<Integer> amounts = new ArrayList<>();
+
+amounts.add(100);
+amounts.add(200);
+```
+
+| Primitive `int` | Wrapper `Integer` |
+|---|---|
+| Primitive value | Object |
+| Cannot be null | Can be null |
+| No utility methods | Provides utility methods |
+
+## 9. Autoboxing and Unboxing
+
+**Autoboxing:** Automatic conversion of a primitive into its corresponding wrapper object.
+
+```java
+int amount = 100;
+Integer paymentAmount = amount;
+```
+
+**Unboxing:** Automatic conversion of a wrapper object into its corresponding primitive.
+
+```java
+Integer amount = 100;
+int paymentAmount = amount;
+```
+
+| Concept | Conversion |
+|---|---|
+| Autoboxing | `int` → `Integer` |
+| Unboxing | `Integer` → `int` |
+
+**Interview one-liners:**
+
+- Autoboxing is the automatic conversion of a primitive value into its corresponding wrapper class object.
+- Unboxing is the automatic conversion of a wrapper class object into its corresponding primitive value.
+
+## 10. Null During Unboxing
+
+<badge color="warning">Important interview trap</badge>
+
+```java
+Integer amount = null;
+
+int paymentAmount = amount;
+```
+
+<badge color="danger">NullPointerException</badge>
+
+**Why?**
+
+Java tries to extract a primitive `int` value from a null Integer object.
+
+**Safe approach:**
+
+```java
+Integer amount = paymentRepository.findAmount();
+
+if (amount != null) {
+    int paymentAmount = amount;
+}
+```
+
+**Important difference:**
+
+```java
+Integer amount = null;
+
+if (amount == null) {
+    System.out.println("Amount is missing");
+}
+```
+
+This is safe because you're only checking the reference. You're not unboxing it.
+
+**Interview takeaway:** Unboxing a null wrapper object throws `NullPointerException`.
+
+## 11. Integer Caching
+
+<badge color="info">Future-demand interview note</badge>
+
+**Q: What is Integer caching?**
+
+**A:** Java guarantees caching of commonly used `Integer` values from -128 to 127.
+
+When autoboxing values within this range, Java reuses cached Integer objects.
+
+**Example within the cache range:**
+
+```java
+Integer a = 100;
+Integer b = 100;
+
+System.out.println(a == b); // true
+```
+
+**Why true?**
+
+Both references point to the same cached Integer object.
+
+**Example outside the guaranteed cache range:**
+
+```java
+Integer x = 200;
+Integer y = 200;
+
+System.out.println(x == y);      // commonly false
+System.out.println(x.equals(y)); // true
+```
+
+**Why?**
+
+- `200` is outside the guaranteed cache range.
+- Separate Integer objects are commonly used.
+- `==` compares references.
+- `equals()` compares values.
+
+**Important:** JVM implementations may cache additional values. Don't assume every value above 127 must have a different reference.
+
+### Quick interview examples
+
+| Code | Result |
+|---|---|
+| `Integer a = 127; Integer b = 127; a == b` | `true` |
+| `Integer x = 128; Integer y = 128; x == y` | Commonly `false` |
+| `Integer x = 200; Integer y = 200; x.equals(y)` | `true` |
+| `Integer a = 100; Integer b = new Integer(100); a == b` | `false` |
+| `Integer a = 100; Integer b = new Integer(100); a.equals(b)` | `true` |
+
+**Note:** `new Integer(100)` is deprecated since Java 9. Prefer autoboxing or `Integer.valueOf(100)` in normal code.
+
+**Interview takeaway:** Use `equals()` to compare wrapper values, not `==`.
+
+## 12. Rapid Interview Revision
+
+Use these questions to check your recall before an interview.
+
+| Interview question | Short answer |
+|---|---|
+| Why is String immutable? | Security, thread safety, String Pool reuse and stable hash code. |
+| Can a String reference change? | Yes, it can point to another String. |
+| What does `intern()` do? | Returns the canonical pooled reference. |
+| Difference between `==` and `equals()`? | Reference comparison vs content comparison. |
+| Is StringBuilder mutable? | Yes. |
+| Is StringBuffer synchronized? | Yes, its individual methods are synchronized. |
+| Which is generally faster, StringBuilder or StringBuffer? | StringBuilder. |
+| Why use Integer in ArrayList? | Collections store objects, not primitive values directly. |
+| What is autoboxing? | Primitive to wrapper object. |
+| What is unboxing? | Wrapper object to primitive. |
+| What happens during null unboxing? | NullPointerException. |
+| What is Integer caching? | Reuse of cached Integer objects, guaranteed for -128 to 127. |
+| Should you compare Integer values using `==`? | Prefer `equals()` for value comparison. |
+
+## 13. Topic Completion Tracker
+
+**Java Core Topic 8**
+
+<badge color="success">Completed</badge>
+
+All 11 syllabus sections completed.
+
+- [x] String immutability
+- [x] String Pool and `intern()`
+- [x] `==` vs `equals()`
+- [x] String concatenation
+- [x] StringBuilder
+- [x] StringBuffer
+- [x] String comparisons
+- [x] Wrapper classes
+- [x] Autoboxing and unboxing
+- [x] Null during unboxing
+- [x] Integer caching
