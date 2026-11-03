@@ -2677,3 +2677,488 @@ All 11 syllabus sections completed.
 - [x] Autoboxing and unboxing
 - [x] Null during unboxing
 - [x] Integer caching
+
+
+# Java Core — Topic 9: JVM Fundamentals
+**Level:** 3+ YOE Java Backend Developer  
+**Status:** Completed
+
+## 1. JDK vs JRE vs JVM
+
+| Component | Purpose | Important details |
+|---|---|---|
+| JDK | Develop and run Java applications | Includes tools such as `javac` |
+| JRE | Provides the Java runtime environment | JVM + runtime libraries |
+| JVM | Executes Java bytecode | Loads, verifies and executes bytecode |
+
+**Memory trick:**
+- JDK = Develop + Run
+- JRE = Run
+- JVM = Execute bytecode
+
+**Interview answer:**
+
+JDK provides development tools and the runtime environment. JRE provides the environment required to run Java applications, while JVM executes the compiled bytecode.
+
+*Note:* Since Java 9, the traditional separate JRE distribution is no longer the standard JDK installation model, but these conceptual distinctions remain useful.
+
+---
+
+## 2. Java Program Execution Flow
+
+```text
+Payment.java
+     |
+     v
+javac compiler
+     |
+     v
+Payment.class
+(Java Bytecode)
+     |
+     v
+JVM
+     |
+     v
+Class Loader
+     |
+     v
+Bytecode Verifier
+     |
+     v
+Execution Engine
+     |
+     +---- Interpreter
+     |
+     +---- JIT Compiler
+     |
+     v
+Program Execution
+```
+
+### Important concepts
+
+- `.java` — Java source code file.
+- `javac` — Compiles Java source code.
+- `.class` — Contains compiled bytecode.
+- Bytecode — Intermediate, platform-independent instructions.
+- JVM — Loads, verifies and executes bytecode.
+
+### Interpreter vs JIT
+
+| Interpreter | JIT Compiler |
+|---|---|
+| Executes bytecode instructions | Compiles frequently executed bytecode into native machine code |
+| Allows execution without waiting for compilation | Improves performance of frequently executed code |
+
+**Interview one-liner:**
+
+When we compile a Java source file using `javac`, it generates platform-independent bytecode in a `.class` file. The JVM loads and verifies that bytecode, then executes it using the interpreter and JIT compiler.
+
+**Why is Java platform-independent?**
+
+The same bytecode can run on different operating systems, provided a compatible JVM is available.
+
+---
+
+## 3. JVM Memory Areas
+
+| Memory area | What it stores / does |
+|---|---|
+| Heap | Objects and arrays |
+| Stack | Stack Frames, local variables and method execution data |
+| Method Area | Class-level metadata and runtime constant-pool information |
+| PC Register | Tracks the current instruction being executed by each thread |
+| Native Method Stack | Supports execution of native methods |
+
+### Thread ownership — Important interview table
+
+| Memory area | Thread ownership |
+|---|---|
+| Heap | Shared |
+| Method Area | Shared |
+| Stack | Each thread has its own |
+| PC Register | Each thread has its own |
+| Native Method Stack | Each thread has its own |
+
+**Memory trick:**
+- Heap → Objects
+- Stack → Methods
+- Method Area → Class information
+- PC Register → Current instruction
+- Native Method Stack → Native method execution
+
+**Technical note:** Method Area is the JVM specification's logical memory area. Metaspace is how the HotSpot JVM implements class metadata storage.
+
+---
+
+## 4. Heap Memory
+
+Heap stores:
+- Objects
+- Arrays
+- Object instance data
+- Instance fields
+
+Example:
+
+```java
+Payment payment = new Payment();
+```
+
+The actual `Payment` object is created in the Heap.
+
+### Where does each value go?
+
+| Variable / Data | Stored in |
+|---|---|
+| Primitive local variable `amount` | Stack Frame |
+| Local reference variable `payment` | Stack Frame |
+| Actual `Payment` object | Heap |
+| Object's instance field `amount` | Heap, inside the object |
+
+Illustrative memory view:
+
+```text
+Stack — processPayment() frame
+
+amount = 1000
+
+payment → reference to Payment object
+
+
+Heap
+
+Payment object
+
+instance amount = 5000
+```
+
+**Important distinction:**
+- `amount` is a local primitive variable → Stack.
+- `payment` is a local reference variable → Stack.
+- The actual object and its instance fields → Heap.
+
+This is the standard JVM interview memory model.
+
+---
+
+## 5. Object References vs Actual Objects
+
+Example:
+
+```java
+Payment p1 = new Payment(1000);
+Payment p2 = p1;
+```
+
+- Only one object is created.
+- `p1` and `p2` contain reference values pointing to the same object.
+- Assigning one reference to another does not create another object.
+
+If we execute:
+
+```java
+p2.amount = 5000;
+```
+
+Then:
+
+```java
+System.out.println(p1.amount); // 5000
+```
+
+Both references point to the same Heap object.
+
+### Reference reassignment
+
+```java
+Payment p1 = new Payment(1000);
+Payment p2 = p1;
+
+p2 = new Payment(9000);
+```
+
+Now:
+- `p1` points to the original object (`1000`).
+- `p2` points to a new object (`9000`).
+- Two objects exist.
+
+**Interview takeaway:** Reference assignment copies the reference value, not the actual object.
+
+---
+
+## 6. Stack and Stack Frames
+
+- Stack manages method execution.
+- Each method invocation creates a Stack Frame.
+- A Stack Frame contains method parameters, local variables and execution information.
+- Method call → Stack Frame is pushed.
+- Method completion → Stack Frame is popped.
+- Stack follows LIFO (Last In, First Out).
+
+Example:
+
+```java
+public void processPayment() {
+    updatePayment();
+}
+
+public void updatePayment() {
+    validatePayment();
+}
+
+public void validatePayment() {
+    System.out.println("Validating payment");
+}
+```
+
+While `validatePayment()` executes, its Stack Frame is at the top of the Stack.
+
+**Interview answer:**
+
+The Stack is a JVM memory area used for method execution. A Stack Frame is created within the Stack for each method invocation and stores that method's local variables and execution information.
+
+**Thread distinction:** Each Java thread has its own Stack.
+
+---
+
+## 7. Java Pass-by-Value — Important Scenarios
+
+**Definition to remember:**
+
+Java always follows pass-by-value, meaning a method receives a copy of the argument's value, not the caller's original variable.
+
+### Scenario 1: Primitive parameter modification
+
+```java
+void update(int x) {
+    x = 500;
+}
+
+void test() {
+    int amount = 100;
+    update(amount);
+    System.out.println(amount); // 100
+}
+```
+
+The method changes its copied primitive value, not the caller's variable.
+
+### Scenario 2: Reassigning an object reference parameter
+
+```java
+void update(Payment p) {
+    p = new Payment();
+    p.amount = 9000;
+}
+
+void test() {
+    Payment payment = new Payment(); // amount = 1000
+    update(payment);
+    System.out.println(payment.amount); // 1000
+}
+```
+
+Java copies the reference value. Reassigning the local parameter to a new object does not change the caller's reference.
+
+### Scenario 3: Modifying an existing object's field
+
+```java
+void update(Payment p) {
+    p.amount = 5000;
+}
+
+void test() {
+    Payment payment = new Payment(); // amount = 1000
+    update(payment);
+    System.out.println(payment.amount); // 5000
+}
+```
+
+Both references point to the same object, so the field modification is visible through either reference.
+
+### Quick comparison
+
+| Operation | Caller sees the change? |
+|---|---|
+| Primitive parameter modification | No |
+| Reference parameter reassignment | No |
+| Modification of shared object's field | Yes |
+
+---
+
+## 8. Method Area and Metaspace
+
+Method Area stores class-level information, such as:
+- Class structure and metadata
+- Field definitions
+- Method definitions
+- Runtime constant-pool information
+
+### Metaspace
+
+- Metaspace is the HotSpot JVM implementation of class metadata storage.
+- Introduced in Java 8, replacing PermGen.
+- Uses native memory rather than Java Heap.
+
+Example:
+
+```java
+public class Payment {
+    int amount;
+
+    public void processPayment() {
+        System.out.println("Processing");
+    }
+}
+```
+
+When JVM loads the `Payment` class, it maintains its class metadata.
+
+If 100 Payment objects are created:
+- Each object has its own instance data.
+- The loaded class's metadata is maintained once per class-loader definition, not copied into every object.
+
+**Interview one-liner:**
+
+The Method Area stores class-level metadata, such as class structure, method information and runtime constant-pool data. In HotSpot JVM, Metaspace is used to store class metadata.
+
+### Heap vs Method Area
+
+| Heap | Method Area / Metaspace |
+|---|---|
+| Stores actual objects | Stores class metadata |
+| Contains instance data | Contains class-level information |
+| Shared among threads | Shared among threads |
+
+---
+
+## 9. PC Register
+
+- PC stands for Program Counter.
+- It is thread-private.
+- Tracks the current JVM instruction being executed by a thread.
+
+**Interview one-liner:**
+
+The PC Register is a thread-private memory area that tracks the current JVM instruction being executed by a thread.
+
+---
+
+## 10. Native Method Stack
+
+Java applications can call native methods written in languages such as C or C++ through JNI (Java Native Interface).
+
+**Interview one-liner:**
+
+The Native Method Stack supports the execution of native methods that are not written in Java.
+
+Important:
+- Each thread has its own Native Method Stack.
+- It supports native method execution.
+
+---
+
+## 11. Object Lifetime
+
+Example:
+
+```java
+public void process() {
+    Payment payment = new Payment();
+    payment = null;
+}
+```
+
+Assuming no other reachable reference points to the object:
+
+1. `new Payment()` creates an object in the Heap.
+2. `payment` stores a reference in the Stack Frame.
+3. `payment = null` removes that reference.
+4. The object becomes eligible for Garbage Collection.
+
+**Important distinction:**
+
+Eligible for GC does not mean immediately garbage collected.
+
+Another example:
+
+```java
+public Payment createPayment() {
+    Payment payment = new Payment();
+    return payment;
+}
+
+public void process() {
+    Payment p = createPayment();
+}
+```
+
+After `createPayment()` finishes:
+- Its Stack Frame is removed.
+- The local reference in that frame disappears.
+- The object remains accessible through `p`.
+- Therefore, the object remains reachable in the Heap.
+
+**Interview takeaway:** An object's lifetime is independent of the Stack Frame that created it. It can survive as long as it remains reachable.
+
+---
+
+## 12. Frequently Asked Interview Questions
+
+1. What is the difference between JDK, JRE and JVM?
+2. How does a Java program execute?
+3. What is bytecode?
+4. Why is Java platform-independent?
+5. What is the difference between Interpreter and JIT?
+6. What is Heap memory?
+7. What is Stack memory?
+8. What is a Stack Frame?
+9. Where are objects and local variables stored?
+10. Where is an object reference stored?
+11. What happens when a method is called?
+12. What happens when a method finishes?
+13. What is the difference between Heap and Method Area?
+14. What is Metaspace?
+15. What is the PC Register?
+16. What is Native Method Stack?
+17. Which JVM memory areas are shared between threads?
+18. Which JVM memory areas are thread-private?
+19. Can an object survive after the method that created it finishes?
+20. When does an object become eligible for Garbage Collection?
+21. Is Java pass-by-value or pass-by-reference?
+22. What happens when one object reference is assigned to another?
+
+---
+
+## 13. Quick Revision — One-Minute Recall
+
+| Concept | Remember |
+|---|---|
+| JDK | Development + runtime tools |
+| JRE | Runtime environment |
+| JVM | Executes bytecode |
+| `.java` | Source code |
+| `.class` | Bytecode |
+| `javac` | Compiles Java source |
+| Interpreter | Executes bytecode |
+| JIT | Compiles hot code into native machine code |
+| Heap | Objects and arrays |
+| Stack | Method execution and local variables |
+| Stack Frame | One method invocation |
+| Method Area | Class metadata |
+| Metaspace | HotSpot class metadata storage |
+| PC Register | Current JVM instruction |
+| Native Method Stack | Native method execution |
+| Object lifetime | Depends on reachability, not just creating method lifetime |
+
+### Final memory trick
+
+**Heap = Objects | Stack = Methods | Method Area = Classes | PC = Instructions | Native Stack = Native Methods**
+
+---
+
+**Topic 9 — JVM Fundamentals: COMPLETED**
+
+Next Java Core topic: **Topic 10 — Garbage Collection**, following the existing Java Core syllabus.
