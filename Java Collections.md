@@ -889,6 +889,35 @@ LinkedHashSet → Unique + insertion order
 TreeSet       → Unique + sorted
 ```
 
+
+
+## TreeSet — Navigation Methods
+
+```java
+TreeSet<Integer> ts = new TreeSet<>(Arrays.asList(10, 20, 30, 40, 50));
+
+ts.first();        // 10  (smallest)
+ts.last();         // 50  (largest)
+ts.floor(25);      // 20  (greatest element <= 25)
+ts.ceiling(25);    // 30  (smallest element >= 25)
+ts.lower(30);      // 20  (greatest element < 30)
+ts.higher(30);     // 40  (smallest element > 30)
+
+ts.pollFirst();    // removes and returns 10
+ts.pollLast();     // removes and returns 50
+```
+
+## Java 21+ — SequencedSet
+
+`TreeSet` now has `getFirst()`, `getLast()`, and `reversed()`, but still no `get(index)`:
+
+```java
+ts.getFirst();     // smallest
+ts.getLast();      // largest
+ts.reversed();     // reversed view
+```
+
+
 ---
 
 # 15. Map
