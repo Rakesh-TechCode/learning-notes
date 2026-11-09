@@ -170,7 +170,15 @@ map()
    ↓
 toList()
 ```
+## The Difference(for toList() usage)
 
+|                                  | `stream.toList()`                                                   | `stream.collect(Collectors.toList())`                        |
+|----------------------------------|-------------------------------------------------------------------|-----------------------------------------------------------|
+| Added in                         | Java 16                                                           | Java 8                                                    |
+| Needs `import java.util.stream.*` | No                                                                | Yes                                                       |
+| Result is modifiable?             | **No**, `add`/`remove`/`set` throw `UnsupportedOperationException` | Yes, in practice an `ArrayList` (not guaranteed by the spec) |
+| Allows `null` elements            | Yes                                                               | Yes                                                       |
+| Length of code                    | Short                                                             | Longer                                                    |
 ---
 
 ## Lazy Evaluation ✅
