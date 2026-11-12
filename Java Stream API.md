@@ -695,3 +695,588 @@ make a List
                     ↓
                 Final Result
 ```
+
+# Java Stream API — Notes (Continued)
+
+## 7. `distinct()`
+
+1. `distinct()` is an **intermediate operation**.
+2. It removes duplicate elements from a Stream.
+3. It uses `equals()` and `hashCode()` to identify duplicates.
+4. It does not modify the original Collection.
+
+```java
+List<Integer> result = numbers.stream()
+        .distinct()
+        .toList();
+```
+
+**Example:**
+
+Input: `[10, 20, 10, 30, 20]`
+
+Output: `[10, 20, 30]`
+
+### Custom Objects with `distinct()`
+
+For custom objects like `Employee`, override `equals()` and `hashCode()` to define logical equality.
+
+```java
+Employee e1 = new Employee(101, "Rakesh");
+Employee e2 = new Employee(101, "Rakesh");
+```
+
+If `equals()` compares employees using only their IDs, these two objects are considered duplicates.
+
+**Important:**
+- `hashCode()` helps identify possible matches.
+- `equals()` confirms logical equality.
+- Same hash code does not guarantee that two objects are equal.
+
+---
+
+## 8. `sorted()`
+
+1. `sorted()` is an **intermediate operation**.
+2. It sorts Stream elements.
+3. Without arguments, it uses natural ordering.
+4. With a Comparator, it uses custom ordering.
+5. It does not modify the original Collection.
+
+### Natural Ordering
+
+```java
+List<Integer> result = numbers.stream()
+        .sorted()
+        .toList();
+```
+
+Input: `[50, 10, 40, 20, 30]`
+
+Output: `[10, 20, 30, 40, 50]`
+
+### Custom Sorting Using Comparator
+
+**Ascending salary:**
+
+```java
+employees.stream()
+        .sorted(Comparator.comparing(Employee::getSalary))
+        .toList();
+```
+
+**Descending salary:**
+
+```java
+employees.stream()
+        .sorted(Comparator.comparing(Employee::getSalary).reversed())
+        .toList();
+```
+
+**Sort by employee name:**
+
+```java
+employees.stream()
+        .sorted(Comparator.comparing(Employee::getName))
+        .toList();
+```
+
+### Sorting by Multiple Fields
+
+Salary ascending, then name ascending:
+
+```java
+employees.stream()
+        .sorted(
+            Comparator.comparing(Employee::getSalary)
+                      .thenComparing(Employee::getName)
+        )
+        .toList();
+```
+
+Salary descending, then name ascending:
+
+```java
+employees.stream()
+        .sorted(
+            Comparator.comparing(Employee::getSalary).reversed()
+                      .thenComparing(Employee::getName)
+        )
+        .toList();
+```
+
+**Remember:**
+- `sorted()` → Natural ordering.
+- `sorted(comparator)` → Custom ordering.
+- `Comparator.comparing()` → Defines which field to compare.
+- `thenComparing()` → Adds a secondary sorting condition.
+- `reversed()` → Reverses the comparator's ordering.
+
+---
+
+## 9. Method References (`::`)
+
+1. Method references are a Java 8 feature.
+2. They provide a shorter way to write certain lambda expressions.
+3. They reference an existing method instead of explicitly calling it inside a lambda.
+
+### Lambda vs Method Reference
+
+Lambda:
+
+```java
+employees.stream()
+        .map(employee -> employee.getName())
+        .toList();
+```
+
+Equivalent method reference:
+
+```java
+employees.stream()
+        .map(Employee::getName)
+        .toList();
+```
+
+Another example:
+
+```java
+.map(employee -> employee.getSalary())
+```
+
+Equivalent to:
+
+```java
+.map(Employee::getSalary)
+```
+
+### Understanding the Difference
+
+| Syntax | Meaning |
+|---|---|
+| `employee.getName()` | Calls the method on an object |
+| `employee -> employee.getName()` | Lambda that calls the method |
+| `Employee::getName` | Method reference |
+
+**Important:**
+
+- `Employee` must have the referenced method.
+- A method reference does not execute the method immediately.
+- The Stream operation invokes it when processing elements.
+
+### When to Use Lambda vs Method Reference?
+
+Use a method reference when you are simply calling an existing method.
+
+```java
+.map(Employee::getSalary)
+```
+
+Use a lambda when additional logic is required.
+
+```java
+.map(employee -> employee.getSalary() + 1000)
+```
+
+A method reference cannot directly include additional operations.
+
+---
+
+## 10. `limit()` and `skip()`
+
+Both are **intermediate operations**.
+
+### `limit()`
+
+1. Returns only the first N elements.
+2. Useful when we need a fixed number of elements.
+
+```java
+List<Integer> result = numbers.stream()
+        .limit(3)
+        .toList();
+```
+
+Input: `[10, 20, 30, 40, 50]`
+
+Output: `[10, 20, 30]`
+
+### `skip()`
+
+1. Skips the first N elements.
+2. Processes the remaining elements.
+
+```java
+List<Integer> result = numbers.stream()
+        .skip(2)
+        .toList();
+```
+
+Input: `[10, 20, 30, 40, 50]`
+
+Output: `[30, 40, 50]`
+
+### Pagination-Style Use Case
+
+```java
+products.stream()
+        .skip(10)
+        .limit(10)
+        .toList();
+```
+
+- `skip(10)` → Skips the first 10 products.
+- `limit(10)` → Returns the next 10 products.
+
+This is a simple in-memory pagination example.
+
+### Combining `filter() + sorted() + limit()`
+
+**Find the top 2 highest-paid employees earning above ₹50,000:**
+
+```java
+List<Employee> result = employees.stream()
+        .filter(e -> e.getSalary() > 50000)
+        .sorted(Comparator.comparing(Employee::getSalary).reversed())
+        .limit(2)
+        .toList();
+```
+
+**Execution flow:**
+
+```text
+Employees
+    |
+    v
+filter(salary > 50000)
+    |
+    v
+sorted(salary descending)
+    |
+    v
+limit(2)
+    |
+    v
+Top 2 Employees
+```
+
+### Interview Problem: Get the 2nd and 3rd Highest-Paid Employees
+
+```java
+List<Employee> result = employees.stream()
+        .sorted(Comparator.comparing(Employee::getSalary).reversed())
+        .skip(1)
+        .limit(2)
+        .toList();
+```
+
+- `sorted()` → Highest salary first.
+- `skip(1)` → Skips the highest-paid employee.
+- `limit(2)` → Gets the next two employees.
+
+**Note:** This finds the 2nd and 3rd employees by sorted position. If multiple employees have the same salary, they are still counted separately.
+
+---
+
+## 11. `findFirst()` and `findAny()`
+
+Both are **terminal operations** and return `Optional<T>`.
+
+### `findFirst()`
+
+1. Returns the first element of the Stream.
+2. Respects encounter order.
+3. Returns `Optional.empty()` if the Stream is empty.
+
+```java
+Optional<Integer> result = numbers.stream()
+        .filter(n -> n > 25)
+        .findFirst();
+```
+
+### `findAny()`
+
+1. Returns any matching element.
+2. Especially useful with parallel Streams when the exact first element is not important.
+3. Returns `Optional.empty()` if the Stream is empty.
+
+```java
+Optional<Integer> result = numbers.parallelStream()
+        .filter(n -> n > 25)
+        .findAny();
+```
+
+### Difference
+
+| `findFirst()` | `findAny()` |
+|---|---|
+| Returns the first element | Returns any element |
+| Respects encounter order | Does not guarantee the first element |
+| Useful when order matters | Useful when any matching element is acceptable |
+
+**Remember:** Both return `Optional<T>`, not the element directly.
+
+---
+
+## 12. `anyMatch()`, `allMatch()` and `noneMatch()`
+
+These are **terminal operations** that return `boolean`.
+
+### `anyMatch()`
+
+Checks whether at least one element satisfies the condition.
+
+```java
+boolean result = numbers.stream()
+        .anyMatch(n -> n > 40);
+```
+
+**Meaning:** Is there at least one number greater than 40?
+
+### `allMatch()`
+
+Checks whether all elements satisfy the condition.
+
+```java
+boolean result = numbers.stream()
+        .allMatch(n -> n > 5);
+```
+
+**Meaning:** Are all numbers greater than 5?
+
+### `noneMatch()`
+
+Checks whether no elements satisfy the condition.
+
+```java
+boolean result = numbers.stream()
+        .noneMatch(n -> n < 0);
+```
+
+**Meaning:** Are there no negative numbers?
+
+### Difference
+
+| Operation | Meaning |
+|---|---|
+| `anyMatch()` | At least one element matches |
+| `allMatch()` | Every element matches |
+| `noneMatch()` | Zero elements match |
+
+### Backend Examples
+
+```java
+boolean allPaid = orders.stream()
+        .allMatch(order -> order.getStatus() == OrderStatus.PAID);
+```
+
+```java
+boolean noFailedOrders = orders.stream()
+        .noneMatch(order -> order.getStatus() == OrderStatus.FAILED);
+```
+
+### Short-Circuiting
+
+Short-circuiting means a Stream operation can stop processing once the final answer is already known.
+
+- `anyMatch()` → Stops when a matching element is found.
+- `allMatch()` → Stops when a non-matching element is found.
+- `noneMatch()` → Stops when a matching element is found.
+
+**Important:** All three operations return `boolean`.
+
+---
+
+## 13. `count()`
+
+1. `count()` is a **terminal operation**.
+2. It counts the number of elements in a Stream.
+3. It returns `long`, not `int`.
+4. It can be combined with intermediate operations.
+
+```java
+long count = numbers.stream()
+        .filter(n -> n > 20)
+        .count();
+```
+
+Input: `[10, 15, 20, 25, 30, 35]`
+
+Output: `3`
+
+### Backend Example
+
+Count the pending orders:
+
+```java
+long pendingOrders = orders.stream()
+        .filter(order -> order.getStatus() == OrderStatus.PENDING)
+        .count();
+```
+
+---
+
+## 14. `min()` and `max()`
+
+Both are **terminal operations** used to find the smallest or largest element.
+
+Both return `Optional<T>` because the Stream might be empty.
+
+### With Integer
+
+**Minimum:**
+
+```java
+Optional<Integer> minimum = numbers.stream()
+        .min(Integer::compareTo);
+```
+
+**Maximum:**
+
+```java
+Optional<Integer> maximum = numbers.stream()
+        .max(Integer::compareTo);
+```
+
+### With Custom Objects
+
+**Find the lowest-paid employee:**
+
+```java
+Optional<Employee> lowestPaid = employees.stream()
+        .min(Comparator.comparing(Employee::getSalary));
+```
+
+**Find the highest-paid employee:**
+
+```java
+Optional<Employee> highestPaid = employees.stream()
+        .max(Comparator.comparing(Employee::getSalary));
+```
+
+### Difference Between `sorted()` and `min()` / `max()`
+
+| `sorted()` | `min()` / `max()` |
+|---|---|
+| Sorts all elements | Finds only one element |
+| Intermediate operation | Terminal operation |
+| Returns a Stream | Returns `Optional<T>` |
+
+### Filtering Before Finding Maximum
+
+Find the highest-paid employee whose salary is above ₹50,000:
+
+```java
+Optional<Employee> highestPaid = employees.stream()
+        .filter(e -> e.getSalary() > 50000)
+        .max(Comparator.comparing(Employee::getSalary));
+```
+
+### Understanding `Optional`
+
+`max()` returns `Optional<Employee>`.
+
+We can handle the result in different ways:
+
+**1. Keep Optional:**
+
+```java
+Optional<Employee> highestPaid = employees.stream()
+        .max(Comparator.comparing(Employee::getSalary));
+```
+
+**2. Return Employee or null:**
+
+```java
+Employee highestPaid = employees.stream()
+        .max(Comparator.comparing(Employee::getSalary))
+        .orElse(null);
+```
+
+**3. Throw an exception if empty:**
+
+```java
+Employee highestPaid = employees.stream()
+        .max(Comparator.comparing(Employee::getSalary))
+        .orElseThrow();
+```
+
+**Remember:**
+
+```text
+min() → Optional<T>
+max() → Optional<T>
+```
+
+---
+
+## 15. Stream Operations — Quick Revision
+
+| Operation | Type | Return |
+|---|---|---|
+| `filter()` | Intermediate | Stream |
+| `map()` | Intermediate | Stream |
+| `flatMap()` | Intermediate | Stream |
+| `distinct()` | Intermediate | Stream |
+| `sorted()` | Intermediate | Stream |
+| `limit()` | Intermediate | Stream |
+| `skip()` | Intermediate | Stream |
+| `findFirst()` | Terminal | Optional<T> |
+| `findAny()` | Terminal | Optional<T> |
+| `anyMatch()` | Terminal | boolean |
+| `allMatch()` | Terminal | boolean |
+| `noneMatch()` | Terminal | boolean |
+| `count()` | Terminal | long |
+| `min()` | Terminal | Optional<T> |
+| `max()` | Terminal | Optional<T> |
+
+## 16. Important Backend Concept: Stream vs Database Query
+
+A Stream processes Java objects in memory. It is not the same as executing a SQL query.
+
+**Typical backend flow:**
+
+```text
+Database
+    |
+    v
+JPA / Hibernate
+    |
+    v
+Java Objects / Collection
+    |
+    v
+Stream API
+    |
+    v
+Filter / Sort / Transform
+    |
+    v
+Result / DTO
+```
+
+### SQL vs Stream Comparison
+
+| Database / SQL | Stream API |
+|---|---|
+| `WHERE` | `filter()` |
+| `ORDER BY` | `sorted()` |
+| `LIMIT` | `limit()` |
+| Projection | `map()` |
+| `GROUP BY` | `groupingBy()` |
+
+**Important:** For large datasets, prefer filtering, sorting and pagination in the database instead of loading all records into Java memory and processing them with Streams.
+
+Example Spring Data JPA method:
+
+```java
+List<Employee> findTop2BySalaryGreaterThanOrderBySalaryDesc(Double salary);
+```
+
+This lets the database perform the filtering, sorting and limiting.
+
+---
+
+**End of current notes.**
+
+Topics not yet covered in these notes: `reduce()`, `collect()`, Collectors, Primitive Streams (`IntStream`, `LongStream`, `DoubleStream`), and advanced Method Reference types.
