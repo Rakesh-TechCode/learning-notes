@@ -181,6 +181,28 @@ toList()
 | Length of code                    | Short                                                             | Longer                                                    |
 ---
 
+## How to Read `::` Syntax
+
+Think of it like this:
+
+| Syntax | Meaning |
+|---|---|
+| `Integer` | Class name |
+| `::` | Reference to a method |
+| `sum` | Method name |
+
+**Read it as:** Use the `sum` method from the `Integer` class.
+
+## 4. More Examples
+
+| Lambda Expression | Method Reference |
+|---|---|
+| `s -> s.toUpperCase()` | `String::toUpperCase` |
+| `s -> System.out.println(s)` | `System.out::println` |
+| `(a, b) -> Integer.sum(a, b)` | `Integer::sum` |
+
+**Key Point:** A method reference (`::`) is a shorter way of writing a lambda expression when the lambda simply calls an existing method.
+
 ## Lazy Evaluation ✅
 
 **What it is:** Intermediate operations don't execute immediately. They execute when a **terminal operation** is called.
